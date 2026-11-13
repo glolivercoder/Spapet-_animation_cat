@@ -1,0 +1,14 @@
+{
+  "modules": {
+    "M1-fundacao": {
+      "failures": 3,
+      "last_status": "FAILED",
+      "last_at": "2026-11-13T15:33:27.747504+00:00"
+    },
+    "M5-ui": {
+      "failures": 3,
+      "last_status": "FAILED",
+      "last_at": "2026-11-13T15:33:51.346252+00:00"
+    }
+  }
+}

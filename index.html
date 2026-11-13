@@ -1,0 +1,2151 @@
+<!doctype html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spa Pet · Estética Animal, Bem-Estar & Afeto Real</title>
+  <meta name="description" content="O spa mais amado para cães e gatos. Banhos terapêuticos, ofurô relaxante de ozônio, tosa especializada e muita diversão com nosso gatinho fotorealista Oliver em Ultra-HD!" />
+
+  <!-- Tailwind CSS v4 via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  
+  <!-- Fontes Google: Playfair Display + Plus Jakarta Sans + Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root {
+      --color-spa-lavender: #8b5cf6;
+      --color-spa-cream: #faf7f5;
+      --color-spa-gold: #f59e0b;
+      --color-spa-dark: #1f1b2e;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #faf7f5;
+      color: #2d2638;
+      overflow-x: hidden;
+      cursor: none; /* A bolinha no fio é o nosso cursor principal! */
+    }
+
+    /* Em telas touch/mobile restauramos cursor padrão para acessibilidade */
+    @media (hover: none) and (pointer: coarse) {
+      body {
+        cursor: auto;
+      }
+    }
+
+    .font-serif-luxury {
+      font-family: 'Playfair Display', serif;
+    }
+
+    .font-brand {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* Canvas do fio, bolinha e bolhas por cima de toda a página */
+    #physics-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 999999;
+    }
+
+    /* Sombra dinâmica projetada pela bolinha */
+    #ball-shadow {
+      position: fixed;
+      pointer-events: none;
+      z-index: 999998;
+      width: 28px;
+      height: 12px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, rgba(30, 20, 50, 0.28) 0%, rgba(30, 20, 50, 0) 75%);
+      transform: translate(-50%, -50%);
+      transition: opacity 0.15s ease-out;
+    }
+
+    /* Card do gatinho com perspectiva 3D */
+    .cat-stage-perspective {
+      perspective: 1200px;
+      perspective-origin: center center;
+    }
+
+    .cat-3d-model {
+      transform-style: preserve-3d;
+      will-change: transform;
+      transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    /* Respiração sutil do gatinho */
+    @keyframes kitten-breath {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.006) translateY(-1px); }
+    }
+
+    .animate-breath {
+      animation: kitten-breath 3.6s ease-in-out infinite;
+    }
+
+    /* Onda de impacto da patinha */
+    @keyframes paw-ripple {
+      0% {
+        width: 10px;
+        height: 10px;
+        opacity: 0.9;
+        transform: translate(-50%, -50%) scale(1);
+      }
+      100% {
+        width: 140px;
+        height: 140px;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(2.2);
+      }
+    }
+
+    .paw-shockwave {
+      animation: paw-ripple 0.5s ease-out forwards;
+    }
+
+    /* Partículas de carinho e bote */
+    .pop-particle {
+      position: fixed;
+      pointer-events: none;
+      z-index: 1000000;
+      user-select: none;
+      animation: float-pop 0.9s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    }
+
+    @keyframes float-pop {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+      }
+      50% {
+        opacity: 0.95;
+        transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -40px))) scale(1.3) rotate(var(--rot, 15deg));
+      }
+      100% {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, -80px))) scale(1.1) rotate(calc(var(--rot, 15deg) * 2));
+      }
+    }
+
+    /* Botão flutuante para voltar a brincar com o gatinho */
+    #back-to-cat-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      transform: translateY(120px);
+      transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    #back-to-cat-btn.visible {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+
+<body class="selection:bg-purple-200 selection:text-purple-900">
+
+  <!-- CANVAS FÍSICO: RENDERIZA O FIO, A BOLINHA E BOLHAS DE SABÃO DO SPA -->
+  <canvas id="physics-canvas"></canvas>
+  <div id="ball-shadow"></div>
+
+  <!-- CONTAINER DE PARTÍCULAS INTERATIVAS -->
+  <div id="particles-container"></div>
+
+  <!-- BOTÃO FLUTUANTE: VOLTAR A BRINCAR COM O OLIVER -->
+  <div id="back-to-cat-btn">
+    <a href="#oliver-arena" class="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-bold text-xs shadow-xl hover:shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all border border-purple-400/40">
+      <span class="text-base animate-bounce">🐱</span>
+      <span>Brincar com o Oliver</span>
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+    </a>
+  </div>
+
+  <!-- TOP BAR PROMOCIONAL & CONTROLES -->
+  <div class="bg-gradient-to-r from-purple-900 via-indigo-950 to-purple-950 text-white text-xs sm:text-sm py-2 px-4 shadow-sm border-b border-purple-800/40 relative z-50">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-400 text-purple-950 animate-pulse">
+          🐾 NOVIDADE
+        </span>
+        <span class="font-medium tracking-wide">
+          Semana do Bem-Estar: <strong>15% OFF</strong> no 1º Pacote Spa com Ofurô de Ozônio!
+        </span>
+      </div>
+
+      <div class="flex items-center gap-3 text-xs">
+        <div class="hidden md:flex items-center gap-3 text-purple-200">
+          <span>🕒 Seg a Sáb: 08h às 19h</span>
+          <span class="opacity-40">|</span>
+          <a href="tel:+5511999998888" class="hover:text-white transition-colors flex items-center gap-1">
+            📞 (11) 99999-8888
+          </a>
+        </div>
+
+        <!-- Seletor de Som -->
+        <button id="sound-toggle-btn" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-800/60 hover:bg-purple-700/80 text-purple-100 transition border border-purple-600/40" title="Ativar/Desativar Efeitos Sonoros">
+          <span id="sound-icon">🔊</span>
+          <span id="sound-label" class="font-medium">Som Ativado</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVBAR LUXO -->
+  <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-purple-100/70 transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      
+      <!-- LOGO SPA PET -->
+      <a href="#" class="flex items-center gap-3 group">
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/30 group-hover:scale-105 transition-transform">
+          <i data-lucide="crown" class="w-6 h-6 text-amber-300"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <span class="font-brand font-bold text-2xl tracking-tight text-gray-900">Spa Pet</span>
+            <span class="text-xs uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">VIP</span>
+          </div>
+          <p class="text-[11px] uppercase tracking-widest text-purple-600 font-semibold">Estética, Banho & Afeto</p>
+        </div>
+      </a>
+
+      <!-- LINKS DESKTOP -->
+      <nav class="hidden lg:flex items-center gap-8 font-medium text-sm text-gray-600">
+        <a href="#experiencia" class="hover:text-purple-600 transition-colors">A Experiência</a>
+        <a href="#servicos" class="hover:text-purple-600 transition-colors">Tratamentos</a>
+        <a href="#antes-depois" class="hover:text-purple-600 transition-colors">Antes & Depois</a>
+        <a href="#planos" class="hover:text-purple-600 transition-colors">Planos Mensais</a>
+        <a href="#oliver-arena" class="hover:text-purple-600 transition-colors text-purple-700 font-semibold flex items-center gap-1">
+          <span>🐱 Oliver em Ultra-HD</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        </a>
+        <a href="#agendamento" class="hover:text-purple-600 transition-colors">Contato</a>
+      </nav>
+
+      <!-- BOTÃO CTA DE AGENDAMENTO -->
+      <div class="flex items-center gap-3">
+        <a href="#agendamento" class="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold text-sm shadow-md hover:shadow-lg hover:from-purple-700 hover:to-indigo-700 transition-all hover:-translate-y-0.5">
+          <i data-lucide="calendar" class="w-4 h-4"></i>
+          <span>Agendar Horário</span>
+        </a>
+        <a href="https://wa.me/5511999998888?text=Olá!%20Gostaria%20de%20agendar%20um%20banho%20relaxante%20no%20Spa%20Pet!" target="_blank" class="p-2.5 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition" title="Falar no WhatsApp">
+          <i data-lucide="message-circle" class="w-5 h-5"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO SECTION COM O GATINHO FOTOREALISTA OLIVER EM ULTRA-HD -->
+  <section id="oliver-arena" class="relative pt-8 pb-20 md:py-16 overflow-hidden bg-gradient-to-b from-purple-50/70 via-cream to-white">
+    
+    <!-- Elementos decorativos de fundo -->
+    <div class="absolute top-10 left-10 w-96 h-96 bg-purple-200/40 rounded-full blur-3xl pointer-events-none -z-10"></div>
+    <div class="absolute bottom-10 right-10 w-96 h-96 bg-indigo-200/40 rounded-full blur-3xl pointer-events-none -z-10"></div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <!-- BANNER DE CUPOM DESBLOQUEADO AO ATINGIR 5 BOTES -->
+      <div id="coupon-banner" class="hidden max-w-xl mx-auto mb-6 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-purple-950 px-5 py-3.5 rounded-2xl shadow-xl border-2 border-white flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-3xl animate-bounce">🎁</span>
+          <div>
+            <p class="font-extrabold text-sm tracking-tight">PARABÉNS! CUPOM DESBLOQUEADO: <span class="bg-purple-950 text-amber-300 px-2 py-0.5 rounded-md font-mono">OLIVER15</span></p>
+            <p class="text-xs font-semibold text-purple-900">Você ganhou 15% OFF no 1º banho por brincar com o Oliver!</p>
+          </div>
+        </div>
+        <a href="#agendamento" class="px-3.5 py-2 rounded-xl bg-purple-950 text-white font-bold text-xs hover:bg-purple-900 transition whitespace-nowrap shadow-sm">
+          Aproveitar Desconto
+        </a>
+      </div>
+
+      <!-- GRID: TEXTO + ARENA INTERATIVA DO GATINHO -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        
+        <!-- COLUNA DA ESQUERDA: APRESENTAÇÃO & CTA -->
+        <div class="lg:col-span-6 space-y-6 text-center lg:text-left">
+          
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-100 border border-purple-200 text-purple-800 text-xs sm:text-sm font-semibold shadow-xs">
+            <span class="text-base">✨</span>
+            <span>O Pet Spa & Hotel Mais Premiado de 2026</span>
+          </div>
+
+          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-serif-luxury font-bold tracking-tight text-gray-900 leading-[1.15]">
+            Onde o seu pet é mimado como <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-800">realeza</span>.
+          </h1>
+
+          <p class="text-base sm:text-lg text-gray-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+            Banhos com água termal e aromaterapia, ofurô de ozônio relaxante, tosa artística na tesoura e carinho infinito.
+            <strong class="text-purple-900 block mt-2 font-semibold">
+              🐾 A bolinha no fio é o seu cursor! Aproxime o novelo da patinha erguida do Oliver para ver o bote certeiro em resolução Ultra-HD real!
+            </strong>
+          </p>
+
+          <!-- SELETOR DE BRINQUEDOS INTERATIVOS -->
+          <div class="bg-white/85 backdrop-blur rounded-2xl p-4 border border-purple-100 shadow-md space-y-3">
+            <div class="flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <span>🎮 Escolha o brinquedo no fio:</span>
+              <span id="toy-indicator" class="text-purple-600 font-bold">Novelo de Lã Spa</span>
+            </div>
+            
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button class="toy-select-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition active:scale-95 bg-purple-600 text-white border-purple-600 shadow-sm" data-toy="yarn">
+                <span>🟣</span>
+                <span>Novelo</span>
+              </button>
+              <button class="toy-select-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition active:scale-95 bg-gray-50 text-gray-700 border-gray-200 hover:bg-purple-50" data-toy="bell">
+                <span>🟡</span>
+                <span>Guizo</span>
+              </button>
+              <button class="toy-select-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition active:scale-95 bg-gray-50 text-gray-700 border-gray-200 hover:bg-purple-50" data-toy="feather">
+                <span>🪶</span>
+                <span>Peninha</span>
+              </button>
+              <button class="toy-select-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition active:scale-95 bg-gray-50 text-gray-700 border-gray-200 hover:bg-purple-50" data-toy="laser">
+                <span>🔴</span>
+                <span>Laser</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- BOTÕES DE AÇÃO -->
+          <div class="pt-2 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+            <a href="#agendamento" class="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-bold text-base shadow-xl shadow-purple-600/30 hover:shadow-purple-600/50 hover:scale-[1.02] active:scale-[0.98] transition-all">
+              <i data-lucide="sparkles" class="w-5 h-5 text-amber-300"></i>
+              <span>Agendar Banho Real</span>
+            </a>
+            
+            <button id="pet-oliver-btn" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-white hover:bg-purple-50 text-purple-700 font-semibold text-base border border-purple-200 shadow-sm hover:border-purple-300 transition-all">
+              <span>💖</span>
+              <span>Fazer Carinho no Oliver</span>
+            </button>
+          </div>
+
+          <!-- PONTOS DE CONFIANÇA -->
+          <div class="grid grid-cols-3 gap-4 pt-4 border-t border-purple-100 text-left">
+            <div>
+              <p class="font-brand font-bold text-2xl text-purple-900">4.9 ★</p>
+              <p class="text-xs text-gray-500">Mais de 1.800 avaliações no Google</p>
+            </div>
+            <div>
+              <p class="font-brand font-bold text-2xl text-purple-900">100%</p>
+              <p class="text-xs text-gray-500">Toalhas individuais e esterilizadas</p>
+            </div>
+            <div>
+              <p class="font-brand font-bold text-2xl text-purple-900">Zero</p>
+              <p class="text-xs text-gray-500">Gaiolas ou estresse nos cuidados</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- COLUNA DA DIREITA: PALCO STUDIO ULTRA-HD DO GATINHO OLIVER -->
+        <div class="lg:col-span-6 flex flex-col items-center">
+          
+          <!-- PLACAR DE DIVERSÃO INTERATIVO -->
+          <div class="w-full max-w-lg mb-3 flex items-center justify-between px-4 py-2 bg-white/95 backdrop-blur rounded-2xl border border-purple-100 shadow-sm text-xs font-medium text-gray-600">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="text-gray-900 font-bold">Oliver · 4 meses</span>
+              <span class="text-purple-600 font-semibold">(Ultra-HD Studio)</span>
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1 font-semibold text-purple-800">
+                🐾 Botes: <strong id="swat-counter" class="text-sm font-extrabold text-purple-600 ml-0.5">0</strong>
+              </span>
+              <span class="text-gray-300">|</span>
+              <span class="flex items-center gap-1 font-semibold text-pink-600">
+                ❤️ <span id="cat-mood-label">Muito Brincalhão</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- ARENA DO GATO: FOTOGRAFIA STUDIO REAL EM ULTRA-HD SEM CORTES OU BUGS -->
+          <div id="cat-stage-box" class="cat-stage-perspective relative w-full max-w-lg aspect-[3/2] rounded-3xl bg-slate-800 border-4 border-white/90 shadow-2xl overflow-hidden group select-none">
+            
+            <!-- ESTRUTURA DO GATINHO FOTOREALISTA EM ALTA DEFINIÇÃO -->
+            <div id="cat-interactive-wrapper" class="cat-3d-model relative w-full h-full cursor-pointer will-change-transform transition-transform duration-75">
+              
+              <!-- CAMADA DE RESPIRAÇÃO: base + patinhas se movem juntas -->
+              <div id="cat-breath" class="animate-breath absolute inset-0">
+                <!-- IMAGEM ULTRA-HD SEM A PATA (inpaint) — a pata é uma camada animada por cima -->
+                <img id="cat-main-img" src="assets/cat_body_no_paw_hd.webp" alt="Oliver - Gatinho Fotorealista Spa Pet em Ultra-HD" class="w-full h-full object-cover select-none pointer-events-none" />
+
+                <!-- PATINHA FOTOREALISTA SOBREPOSTA: segue e tenta agarrar a bolinha -->
+                <img id="cat-paw-overlay" src="assets/paw_arm_hd.png" alt="" aria-hidden="true"
+                     class="absolute pointer-events-none select-none"
+                     style="left:52.584%; top:9.109%; width:23.643%; transform-origin:39.89% 88.51%; will-change:transform;" />
+                <img id="cat-paw-overlay-2" src="assets/paw_arm_hd.png" alt="" aria-hidden="true"
+                     class="absolute pointer-events-none select-none"
+                     style="left:52.584%; top:9.109%; width:23.643%; transform-origin:60.11% 88.51%; opacity:0; will-change:transform, opacity;" />
+              </div>
+
+              <!-- EFEITO DE SHOCKWAVE NA PATINHA AO BATER -->
+              <div id="paw-ripple-effect" class="absolute pointer-events-none rounded-full border-4 border-amber-300 opacity-0" style="left: 67.8%; top: 26.2%; transform: translate(-50%, -50%);"></div>
+
+            </div>
+
+            <!-- Balão de fala dinâmico do Oliver -->
+            <div id="cat-speech" class="absolute top-4 right-4 bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-lg border border-purple-100 text-xs font-bold text-purple-950 flex items-center gap-2 opacity-95 transition-all duration-300 pointer-events-none">
+              <span class="text-base">😸</span>
+              <span id="speech-text">Mova a bolinha perto da minha patinha!</span>
+            </div>
+
+            <!-- Dica flutuante no início -->
+            <div id="hint-drag" class="absolute top-4 left-4 bg-purple-900/85 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs pointer-events-none animate-bounce">
+              <i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i>
+              <span>O fio é o seu cursor</span>
+            </div>
+
+            <!-- Indicador de Proximidade da Patinha no Rodapé do Card -->
+            <div class="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 text-[11px] font-semibold text-purple-900 bg-white/90 px-4 py-1.5 rounded-full backdrop-blur-md shadow-md border border-purple-100 whitespace-nowrap">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 text-amber-500"></i>
+              <span id="proximity-status">Aproxime a bolinha da patinha erguida!</span>
+            </div>
+
+          </div>
+
+          <!-- CONTROLES AUXILIARES DO PALCO -->
+          <div class="mt-4 flex flex-wrap items-center justify-center gap-2 text-xs">
+            <button id="btn-auto-play" class="px-3.5 py-1.5 rounded-full bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 font-medium transition flex items-center gap-1.5 shadow-xs">
+              <span>🪀</span>
+              <span id="auto-play-label">Balançar Bolinha Sozinha</span>
+            </button>
+            <button id="btn-meow" class="px-3.5 py-1.5 rounded-full bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 font-medium transition flex items-center gap-1.5 shadow-xs">
+              <span>📢</span>
+              <span>Pedir Miado</span>
+            </button>
+            <button id="btn-purr" class="px-3.5 py-1.5 rounded-full bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 font-medium transition flex items-center gap-1.5 shadow-xs">
+              <span>💤</span>
+              <span>Ligar Ronrom</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SEÇÃO 2: A EXPERIÊNCIA SPA PET (DIFERENCIAIS) -->
+  <section id="experiencia" class="py-20 bg-white border-y border-purple-100/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+        <span class="text-xs uppercase tracking-widest font-extrabold px-3 py-1 rounded-full bg-purple-100 text-purple-700">
+          Cuidado Sem Traumas
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-serif-luxury font-bold text-gray-950">
+          Por que somos a 1ª escolha dos tutores mais exigentes?
+        </h2>
+        <p class="text-gray-600 text-sm sm:text-base leading-relaxed">
+          Criamos um refúgio de tranquilidade onde o banho não é motivo de pavor, mas sim um momento relaxante e prazeroso com aromaterapia, cromoterapia e produtos veganos da mais alta qualidade mundial.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        
+        <!-- CARD 1 -->
+        <div class="bg-purple-50/50 rounded-3xl p-6 border border-purple-100 hover:shadow-xl hover:border-purple-200 transition-all duration-300 group">
+          <div class="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/20 mb-6 group-hover:scale-110 transition-transform">
+            <i data-lucide="waves" class="w-7 h-7"></i>
+          </div>
+          <h3 class="font-brand font-bold text-lg text-gray-900 mb-2">Ofurô & Ozonioterapia</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">
+            Água em temperatura perfeita enriquecida com microbolhas de ozônio que combatem fungos, alergias e aliviam tensões musculares.
+          </p>
+        </div>
+
+        <!-- CARD 2 -->
+        <div class="bg-purple-50/50 rounded-3xl p-6 border border-purple-100 hover:shadow-xl hover:border-purple-200 transition-all duration-300 group">
+          <div class="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-6 group-hover:scale-110 transition-transform">
+            <i data-lucide="shield-check" class="w-7 h-7"></i>
+          </div>
+          <h3 class="font-brand font-bold text-lg text-gray-900 mb-2">Zero Gaiolas ou Presilhas</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">
+            Seu pet fica solto em áreas recreativas climatizadas com piso antiderrapante e monitores atentos antes e depois dos tratamentos.
+          </p>
+        </div>
+
+        <!-- CARD 3 -->
+        <div class="bg-purple-50/50 rounded-3xl p-6 border border-purple-100 hover:shadow-xl hover:border-purple-200 transition-all duration-300 group">
+          <div class="w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/20 mb-6 group-hover:scale-110 transition-transform">
+            <i data-lucide="sparkles" class="w-7 h-7"></i>
+          </div>
+          <h3 class="font-brand font-bold text-lg text-gray-900 mb-2">Cosméticos de Luxo</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">
+            Shampoos hipoalergênicos importados, máscaras de argan marroquino e condicionadores sem parabenos que deixam os pelos sedosos por semanas.
+          </p>
+        </div>
+
+        <!-- CARD 4 -->
+        <div class="bg-purple-50/50 rounded-3xl p-6 border border-purple-100 hover:shadow-xl hover:border-purple-200 transition-all duration-300 group">
+          <div class="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-6 group-hover:scale-110 transition-transform">
+            <i data-lucide="video" class="w-7 h-7"></i>
+          </div>
+          <h3 class="font-brand font-bold text-lg text-gray-900 mb-2">Câmeras Ao Vivo</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">
+            Acompanhe todo o processo pelo aplicativo no seu smartphone com imagem em alta definição. Transparência e tranquilidade absoluta.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SEÇÃO 3: MENU DE TRATAMENTOS & SERVIÇOS -->
+  <section id="servicos" class="py-20 bg-gradient-to-b from-white to-purple-50/40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+        <div>
+          <span class="text-xs uppercase tracking-widest font-extrabold px-3 py-1 rounded-full bg-purple-100 text-purple-700">
+            Cardápio de Serviços VIP
+          </span>
+          <h2 class="text-3xl sm:text-4xl font-serif-luxury font-bold text-gray-950 mt-3">
+            Tratamentos Criados para Encantar
+          </h2>
+          <p class="text-gray-600 text-sm sm:text-base mt-2 max-w-xl">
+            Cada protocolo é personalizado de acordo com a espécie, idade, pelagem e temperamento do seu bichinho.
+          </p>
+        </div>
+
+        <a href="#agendamento" class="inline-flex items-center gap-2 font-semibold text-purple-700 hover:text-purple-900 transition">
+          <span>Ver todos os pacotes completos</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        
+        <!-- SERVIÇO 1 -->
+        <div class="bg-white rounded-3xl p-6 border border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-2xl">🛁</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-800">Mais Pedido</span>
+            </div>
+            <h3 class="font-brand font-bold text-xl text-gray-900 group-hover:text-purple-600 transition-colors">
+              Banho Terapêutico Real
+            </h3>
+            <p class="text-gray-600 text-sm mt-2 leading-relaxed">
+              Lavagem dupla com shampoo neutro purificante, hidratação profunda de seda, corte de unhas e limpeza auricular indolor.
+            </p>
+            <ul class="mt-4 space-y-2 text-xs text-gray-500 font-medium">
+              <li class="flex items-center gap-1.5">✓ Secagem silenciosa com toalhas térmicas</li>
+              <li class="flex items-center gap-1.5">✓ Finalização com colônia botânica suave</li>
+              <li class="flex items-center gap-1.5">✓ Duração média: 60 minutos</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">A partir de <strong class="text-base font-bold text-purple-900">R$ 69</strong></span>
+            <a href="#agendamento" class="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 font-semibold text-xs transition">
+              Agendar
+            </a>
+          </div>
+        </div>
+
+        <!-- SERVIÇO 2 -->
+        <div class="bg-white rounded-3xl p-6 border border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-2xl">🫧</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800">Relaxamento Total</span>
+            </div>
+            <h3 class="font-brand font-bold text-xl text-gray-900 group-hover:text-purple-600 transition-colors">
+              Ofurô de Ozônio com Aromaterapia
+            </h3>
+            <p class="text-gray-600 text-sm mt-2 leading-relaxed">
+              Banho de imersão quente com hidromassagem suave e óleos essenciais de lavanda francesa para acalmar pets ansiosos ou idosos.
+            </p>
+            <ul class="mt-4 space-y-2 text-xs text-gray-500 font-medium">
+              <li class="flex items-center gap-1.5">✓ Alivia dores nas articulações e artrite</li>
+              <li class="flex items-center gap-1.5">✓ Tratamento antimicrobiano de pele</li>
+              <li class="flex items-center gap-1.5">✓ Duração média: 45 minutos</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">A partir de <strong class="text-base font-bold text-purple-900">R$ 95</strong></span>
+            <a href="#agendamento" class="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 font-semibold text-xs transition">
+              Agendar
+            </a>
+          </div>
+        </div>
+
+        <!-- SERVIÇO 3 -->
+        <div class="bg-white rounded-3xl p-6 border border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-2xl">✂️</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">Alta Estética</span>
+            </div>
+            <h3 class="font-brand font-bold text-xl text-gray-900 group-hover:text-purple-600 transition-colors">
+              Tosa Estilizada & Bebê na Tesoura
+            </h3>
+            <p class="text-gray-600 text-sm mt-2 leading-relaxed">
+              Esculpir a pelagem respeitando o padrão da raça ou criando o corte filhotinho fofo com lâminas importadas que não puxam o fio.
+            </p>
+            <ul class="mt-4 space-y-2 text-xs text-gray-500 font-medium">
+              <li class="flex items-center gap-1.5">✓ Groomers especialistas e certificados</li>
+              <li class="flex items-center gap-1.5">✓ Acabamento impecável e simétrico</li>
+              <li class="flex items-center gap-1.5">✓ Duração média: 90 minutos</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">A partir de <strong class="text-base font-bold text-purple-900">R$ 89</strong></span>
+            <a href="#agendamento" class="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 font-semibold text-xs transition">
+              Agendar
+            </a>
+          </div>
+        </div>
+
+        <!-- SERVIÇO 4 -->
+        <div class="bg-white rounded-3xl p-6 border border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-2xl">👑</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-pink-100 text-pink-800">Experiência VIP</span>
+            </div>
+            <h3 class="font-brand font-bold text-xl text-gray-900 group-hover:text-purple-600 transition-colors">
+              Day Spa "Um Dia de Rei"
+            </h3>
+            <p class="text-gray-600 text-sm mt-2 leading-relaxed">
+              O pacote completo dos sonhos: banho, hidratação de caviar, ofurô, tosa, massagem miofascial relaxante e petiscos artesanais.
+            </p>
+            <ul class="mt-4 space-y-2 text-xs text-gray-500 font-medium">
+              <li class="flex items-center gap-1.5">✓ Sessão de fotos de alta qualidade inclusa</li>
+              <li class="flex items-center gap-1.5">✓ Bandana de seda comemorativa</li>
+              <li class="flex items-center gap-1.5">✓ Duração média: 3 horas</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">A partir de <strong class="text-base font-bold text-purple-900">R$ 180</strong></span>
+            <a href="#agendamento" class="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 font-semibold text-xs transition">
+              Agendar
+            </a>
+          </div>
+        </div>
+
+        <!-- SERVIÇO 5 -->
+        <div class="bg-white rounded-3xl p-6 border border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-2xl">🩺</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">Saúde & Bem-Estar</span>
+            </div>
+            <h3 class="font-brand font-bold text-xl text-gray-900 group-hover:text-purple-600 transition-colors">
+              Consultório Veterinário Preventivo
+            </h3>
+            <p class="text-gray-600 text-sm mt-2 leading-relaxed">
+              Avaliação clínica humanizada, vacinas éticas importadas, vermifugação e controle de ectoparasitas com carinho redobrado.
+            </p>
+            <ul class="mt-4 space-y-2 text-xs text-gray-500 font-medium">
+              <li class="flex items-center gap-1.5">✓ Veterinários especializados em pequenos animais</li>
+              <li class="flex items-center gap-1.5">✓ Carteira de vacinação digital</li>
+              <li class="flex items-center gap-1.5">✓ Atendimento com horário marcado</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">A partir de <strong class="text-base font-bold text-purple-900">R$ 120</strong></span>
+            <a href="#agendamento" class="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 font-semibold text-xs transition">
+              Agendar
+            </a>
+          </div>
+        </div>
+
+        <!-- SERVIÇO 6 -->
+        <div class="bg-white rounded-3xl p-6 border border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-2xl">🚗</span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800">Conforto em Casa</span>
+            </div>
+            <h3 class="font-brand font-bold text-xl text-gray-900 group-hover:text-purple-600 transition-colors">
+              Táxi Pet VIP Climatizado
+            </h3>
+            <p class="text-gray-600 text-sm mt-2 leading-relaxed">
+              Buscamos e levamos seu amigo com total segurança em veículos climatizados, caixas de transporte acolchoadas e motoristas treinados.
+            </p>
+            <ul class="mt-4 space-y-2 text-xs text-gray-500 font-medium">
+              <li class="flex items-center gap-1.5">✓ Rastreamento por GPS em tempo real</li>
+              <li class="flex items-center gap-1.5">✓ Cintos de segurança especiais para cães</li>
+              <li class="flex items-center gap-1.5">✓ Notificação de chegada via WhatsApp</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+            <span class="text-xs text-gray-500">A partir de <strong class="text-base font-bold text-purple-900">R$ 25</strong></span>
+            <a href="#agendamento" class="px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 font-semibold text-xs transition">
+              Agendar
+            </a>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SEÇÃO INTERATIVA: ANTES & DEPOIS DO SPA -->
+  <section id="antes-depois" class="py-16 bg-gradient-to-b from-purple-50/40 to-white border-y border-purple-100">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-2xl mx-auto mb-10 space-y-2">
+        <span class="text-xs uppercase tracking-widest font-extrabold px-3 py-1 rounded-full bg-purple-100 text-purple-700">
+          Transformação Real
+        </span>
+        <h2 class="text-3xl font-serif-luxury font-bold text-gray-950">
+          Veja a Magia do Banho & Tosa Spa Pet
+        </h2>
+        <p class="text-gray-600 text-xs sm:text-sm">
+          Arraste a linha central para comparar o pet antes e depois do nosso tratamento de hidratação e tosa estilizada.
+        </p>
+      </div>
+
+      <!-- Slider Interativo Antes & Depois -->
+      <div id="before-after-container" class="relative max-w-2xl mx-auto aspect-[16/10] rounded-3xl overflow-hidden shadow-2xl border-4 border-white select-none cursor-ew-resize">
+        <!-- Imagem DEPOIS (Fundo) -->
+        <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=1200&q=80');">
+          <div class="absolute top-4 right-4 bg-emerald-600/90 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5">
+            <span>✨ DEPOIS DO SPA</span>
+          </div>
+          <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur-xs text-purple-950 text-xs font-semibold px-3 py-1.5 rounded-xl shadow-md">
+            Pelo sedoso, escovado e perfumado 🐾
+          </div>
+        </div>
+
+        <!-- Imagem ANTES (Sobreposição com largura ajustável) -->
+        <div id="before-layer" class="absolute inset-0 bg-cover bg-center" style="width: 50%; background-image: url('https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=1200&q=80'); filter: grayscale(40%) contrast(85%) brightness(85%); border-right: 3px solid white;">
+          <div class="absolute top-4 left-4 bg-gray-900/80 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-md backdrop-blur-xs flex items-center gap-1.5">
+            <span>🌫️ ANTES DO SPA</span>
+          </div>
+          <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-xs text-gray-800 text-xs font-semibold px-3 py-1.5 rounded-xl shadow-md whitespace-nowrap">
+            Pelagem embaraçada e nós
+          </div>
+        </div>
+
+        <!-- Alça de arrasto central -->
+        <div id="slider-handle" class="absolute top-0 bottom-0 w-1 bg-white flex items-center justify-center pointer-events-none" style="left: 50%;">
+          <div class="w-10 h-10 rounded-full bg-purple-600 text-white shadow-xl flex items-center justify-center border-2 border-white text-xs font-bold transform -translate-x-1/2">
+            <span>⟷</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEÇÃO 4: PLANOS MENSAIS (CLUBE SPA PET) -->
+  <section id="planos" class="py-20 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+        <span class="text-xs uppercase tracking-widest font-extrabold px-3 py-1 rounded-full bg-purple-100 text-purple-700">
+          Economia & Cuidado Contínuo
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-serif-luxury font-bold text-gray-950">
+          Clube Spa Pet: Mantenha seu pet sempre perfumado e feliz
+        </h2>
+        <p class="text-gray-600 text-sm sm:text-base leading-relaxed">
+          Assinaturas mensais com banhos semanais garantidos, desconto exclusivo em produtos e horários nobres reservados.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+        
+        <!-- PLANO 1 -->
+        <div class="bg-gray-50 rounded-3xl p-8 border border-gray-200 flex flex-col justify-between hover:border-purple-300 transition-all">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-500">Essencial</span>
+            <h3 class="font-brand font-bold text-2xl text-gray-900 mt-2">Plano Frescor</h3>
+            <p class="text-gray-600 text-xs mt-1">Para pets de pelo curto ou médio que adoram estar limpinhos.</p>
+            
+            <div class="mt-6 flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-gray-900 font-brand">R$ 220</span>
+              <span class="text-xs text-gray-500">/mês</span>
+            </div>
+
+            <ul class="mt-8 space-y-3 text-sm text-gray-600">
+              <li class="flex items-center gap-2">✓ <strong>4 Banhos Completos</strong> no mês</li>
+              <li class="flex items-center gap-2">✓ Corte de unhas e limpeza de ouvidos</li>
+              <li class="flex items-center gap-2">✓ Escovação de pelos e dentes</li>
+              <li class="flex items-center gap-2">✓ 5% de desconto na Boutique Pet</li>
+            </ul>
+          </div>
+
+          <a href="#agendamento" class="mt-8 block w-full py-3.5 px-4 rounded-xl text-center font-bold text-sm bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 transition">
+            Escolher Plano Frescor
+          </a>
+        </div>
+
+        <!-- PLANO 2 (DESTAQUE) -->
+        <div class="relative bg-gradient-to-b from-purple-900 to-indigo-950 text-white rounded-3xl p-8 border-2 border-purple-500 shadow-2xl flex flex-col justify-between transform lg:-translate-y-3">
+          <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-amber-500 text-purple-950 text-xs font-extrabold uppercase tracking-widest px-4 py-1 rounded-full shadow-md">
+            👑 O MAIS ESCOLHIDO
+          </div>
+
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-purple-300">Realeza Total</span>
+            <h3 class="font-brand font-bold text-2xl text-white mt-2">Plano Spa Real</h3>
+            <p class="text-purple-200 text-xs mt-1">O tratamento mais completo para quem ama mimar seu filho de 4 patas.</p>
+            
+            <div class="mt-6 flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-amber-300 font-brand">R$ 360</span>
+              <span class="text-xs text-purple-200">/mês</span>
+            </div>
+
+            <ul class="mt-8 space-y-3 text-sm text-purple-100">
+              <li class="flex items-center gap-2">✓ <strong>4 Banhos Terapêuticos</strong> completos</li>
+              <li class="flex items-center gap-2">✓ <strong>2 Sessões de Ofurô</strong> com Ozônio</li>
+              <li class="flex items-center gap-2">✓ <strong>1 Tosa Higiênica ou Geral</strong></li>
+              <li class="flex items-center gap-2">✓ Hidratação profunda de seda</li>
+              <li class="flex items-center gap-2">✓ <strong>Táxi Pet Grátis</strong> (raio de até 5km)</li>
+              <li class="flex items-center gap-2">✓ 15% de desconto na Boutique Pet</li>
+            </ul>
+          </div>
+
+          <a href="#agendamento" class="mt-8 block w-full py-3.5 px-4 rounded-xl text-center font-bold text-sm bg-gradient-to-r from-amber-400 to-amber-500 text-purple-950 shadow-lg hover:from-amber-300 hover:to-amber-400 transition">
+            Quero o Plano Spa Real
+          </a>
+        </div>
+
+        <!-- PLANO 3 -->
+        <div class="bg-gray-50 rounded-3xl p-8 border border-gray-200 flex flex-col justify-between hover:border-purple-300 transition-all">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-gray-500">Personalizado</span>
+            <h3 class="font-brand font-bold text-2xl text-gray-900 mt-2">Plano Felinos VIP</h3>
+            <p class="text-gray-600 text-xs mt-1">Exclusivo para gatinhos como o Oliver: ambiente 100% acústico sem cães.</p>
+            
+            <div class="mt-6 flex items-baseline gap-1">
+              <span class="text-4xl font-extrabold text-gray-900 font-brand">R$ 290</span>
+              <span class="text-xs text-gray-500">/mês</span>
+            </div>
+
+            <ul class="mt-8 space-y-3 text-sm text-gray-600">
+              <li class="flex items-center gap-2">✓ <strong>2 Banhos a Seco ou Hidratantes</strong> para gatos</li>
+              <li class="flex items-center gap-2">✓ Sala isolada com feromônio Feliway anti-stress</li>
+              <li class="flex items-center gap-2">✓ Remoção profunda de pelos mortos (furminator)</li>
+              <li class="flex items-center gap-2">✓ Corte de unhas especializado</li>
+            </ul>
+          </div>
+
+          <a href="#agendamento" class="mt-8 block w-full py-3.5 px-4 rounded-xl text-center font-bold text-sm bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 transition">
+            Escolher Felinos VIP
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SEÇÃO 5: CALCULADORA RÁPIDA & FORMULÁRIO DE AGENDAMENTO -->
+  <section id="agendamento" class="py-20 bg-white">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="bg-gradient-to-tr from-purple-900 via-indigo-950 to-purple-900 text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-purple-700/50">
+        
+        <div class="text-center max-w-xl mx-auto space-y-3 mb-8">
+          <span class="text-xs uppercase tracking-widest font-extrabold px-3 py-1 rounded-full bg-purple-800/80 text-purple-200 border border-purple-600/50">
+            Agendamento Instantâneo
+          </span>
+          <h2 class="text-3xl font-serif-luxury font-bold text-white">
+            Reserve o Horário do Seu Pet em 1 Minuto
+          </h2>
+          <p class="text-purple-200 text-xs sm:text-sm">
+            Preencha os detalhes e receba a confirmação direta no WhatsApp da recepção do Spa Pet.
+          </p>
+        </div>
+
+        <form id="booking-form" class="space-y-6">
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- NOME DO TUTOR -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Seu Nome Completo:</label>
+              <input type="text" id="tutor-name" required placeholder="Ex: Ana Clara" class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white placeholder-purple-400 focus:outline-none focus:border-amber-400 text-sm">
+            </div>
+
+            <!-- TELEFONE / WHATSAPP -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Seu WhatsApp:</label>
+              <input type="tel" id="tutor-phone" required placeholder="Ex: (11) 98765-4321" class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white placeholder-purple-400 focus:outline-none focus:border-amber-400 text-sm">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- TIPO DE PET -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Tipo do Pet:</label>
+              <select id="pet-type" class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white focus:outline-none focus:border-amber-400 text-sm">
+                <option value="Gato">🐱 Gatinho(a)</option>
+                <option value="Cachorro" selected>🐶 Cachorrinho(a)</option>
+              </select>
+            </div>
+
+            <!-- PORTE -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Porte do Pet:</label>
+              <select id="pet-size" class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white focus:outline-none focus:border-amber-400 text-sm">
+                <option value="Pequeno (até 8kg)">Pequeno (até 8kg)</option>
+                <option value="Médio (8kg a 20kg)">Médio (8kg a 20kg)</option>
+                <option value="Grande (acima de 20kg)">Grande (acima de 20kg)</option>
+              </select>
+            </div>
+
+            <!-- SERVIÇO DESEJADO -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Tratamento Principal:</label>
+              <select id="pet-service" class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white focus:outline-none focus:border-amber-400 text-sm">
+                <option value="Banho Terapêutico Real">Banho Terapêutico Real</option>
+                <option value="Ofurô de Ozônio Relaxante">Ofurô de Ozônio Relaxante</option>
+                <option value="Tosa Estilizada Bebê">Tosa Estilizada Bebê</option>
+                <option value="Day Spa Um Dia de Rei">Day Spa "Um Dia de Rei"</option>
+                <option value="Plano Mensal Spa Real">Plano Mensal Spa Real</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- DATA PREFERENCIAL -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Data Preferida:</label>
+              <input type="date" id="booking-date" required class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white focus:outline-none focus:border-amber-400 text-sm">
+            </div>
+
+            <!-- NOME DO PET -->
+            <div>
+              <label class="block text-xs font-semibold text-purple-200 mb-1.5">Nome do Bichinho:</label>
+              <input type="text" id="pet-name" required placeholder="Ex: Oliver, Pipoca, Thor..." class="w-full px-4 py-3 rounded-xl bg-purple-950/70 border border-purple-700 text-white placeholder-purple-400 focus:outline-none focus:border-amber-400 text-sm">
+            </div>
+          </div>
+
+          <!-- CARD DE ESTIMATIVA DE PREÇO EM TEMPO REAL -->
+          <div class="p-4 rounded-2xl bg-purple-950/80 border border-purple-700/70 flex items-center justify-between">
+            <div>
+              <span class="text-xs text-purple-300 font-medium">Investimento Estimado:</span>
+              <div class="flex items-baseline gap-2 mt-0.5">
+                <span id="price-display" class="font-brand font-extrabold text-2xl text-amber-300">R$ 69,00</span>
+                <span id="discount-badge" class="hidden text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-500 text-purple-950">15% OFF Aplicado!</span>
+              </div>
+              <p id="price-note" class="text-[11px] text-purple-300">Porte Pequeno · Banho Terapêutico Real</p>
+            </div>
+            <div class="text-right">
+              <span class="text-[11px] text-purple-300 block">Tempo médio:</span>
+              <span id="time-display" class="text-xs font-bold text-white">~60 minutos</span>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-purple-950 font-extrabold text-base shadow-xl flex items-center justify-center gap-3 transition-transform active:scale-[0.99]">
+            <i data-lucide="message-circle" class="w-5 h-5"></i>
+            <span>Confirmar e Enviar no WhatsApp do Spa Pet</span>
+          </button>
+
+          <p class="text-center text-[11px] text-purple-300">
+            🔒 Seus dados estão seguros e não enviamos spam. Entraremos em contato apenas para confirmar seu agendamento.
+          </p>
+
+        </form>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- RODAPÉ COMPLETO -->
+  <footer class="bg-gray-950 text-gray-300 pt-16 pb-12 border-t border-purple-950">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
+        
+        <!-- COLUNA 1 -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-purple-600 flex items-center justify-center text-white font-bold">
+              <i data-lucide="crown" class="w-5 h-5 text-amber-300"></i>
+            </div>
+            <span class="font-brand font-bold text-xl text-white">Spa Pet</span>
+          </div>
+          <p class="text-xs text-gray-400 leading-relaxed">
+            O primeiro centro de bem-estar animal com cromoterapia, ofurô de ozônio e amor genuíno de São Paulo.
+          </p>
+          <div class="flex items-center gap-3 text-purple-400 text-sm">
+            <span>📷 @spapetoficial</span>
+            <span>·</span>
+            <span>🐱 Com o Oliver!</span>
+          </div>
+        </div>
+
+        <!-- COLUNA 2 -->
+        <div>
+          <h4 class="font-brand font-bold text-white text-sm mb-4">Tratamentos Rápidos</h4>
+          <ul class="space-y-2 text-xs text-gray-400">
+            <li><a href="#servicos" class="hover:text-white transition">Banho Terapêutico de Seda</a></li>
+            <li><a href="#servicos" class="hover:text-white transition">Ofurô Relaxante de Ozônio</a></li>
+            <li><a href="#servicos" class="hover:text-white transition">Tosa na Tesoura Especializada</a></li>
+            <li><a href="#servicos" class="hover:text-white transition">Day Spa Completo VIP</a></li>
+            <li><a href="#servicos" class="hover:text-white transition">Táxi Pet Climatizado</a></li>
+          </ul>
+        </div>
+
+        <!-- COLUNA 3 -->
+        <div>
+          <h4 class="font-brand font-bold text-white text-sm mb-4">Localização & Contato</h4>
+          <ul class="space-y-2 text-xs text-gray-400">
+            <li>📍 Av. Bem-Estar Pet, 1200 - Jardins, SP</li>
+            <li>🕒 Segunda a Sábado: 08:00 às 19:00</li>
+            <li>📞 (11) 99999-8888</li>
+            <li>✉️ contato@spapet2026.com.br</li>
+          </ul>
+        </div>
+
+        <!-- COLUNA 4 -->
+        <div class="space-y-3">
+          <h4 class="font-brand font-bold text-white text-sm">Atendimento de Realeza</h4>
+          <p class="text-xs text-gray-400">
+            Nosso compromisso é tratar cada cãozinho e gatinho com a mesma dedicação e respeito que temos pela nossa família.
+          </p>
+          <div class="p-3 rounded-xl bg-purple-950/60 border border-purple-800 text-[11px] text-purple-200">
+            🐾 <em>"Amor e cuidado que seu pet sente na pele."</em>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="pt-8 border-t border-gray-900 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-4">
+        <p>© 2026 Spa Pet · Todos os direitos reservados.</p>
+        <p class="flex items-center gap-1">
+          Feito com muito carinho para o gatinho <strong>Oliver</strong> e seus amigos peludos 🐾
+        </p>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- SCRIPT PRINCIPAL: FÍSICA DO FIO, DA BOLINHA, BOLHAS E INTERATIVIDADE ULTRA-HD DO OLIVER -->
+  <script>
+    // Inicializa ícones Lucide
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+
+    /* ========================================================
+       1. WEB AUDIO API SYNTHESIZER (Efeitos Sonoros Procedurais)
+       ======================================================== */
+    let audioCtx = null;
+    let audioEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) {
+          audioCtx = new AudioContext();
+        }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // Som de Miau fofinho realista do Oliver
+    function playCatMeow() {
+      if (!audioEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filter = audioCtx.createBiquadFilter();
+
+      // Pitch glide vocal: de 450Hz -> 790Hz -> 510Hz
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(450, now);
+      osc.frequency.exponentialRampToValueAtTime(790, now + 0.14);
+      osc.frequency.exponentialRampToValueAtTime(510, now + 0.42);
+
+      // Filtro formante para ressonância de miado felino
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(900, now);
+      filter.frequency.exponentialRampToValueAtTime(1450, now + 0.14);
+      filter.frequency.exponentialRampToValueAtTime(750, now + 0.42);
+      filter.Q.value = 3.5;
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.24, now + 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.46);
+    }
+
+    // Som de Patada / Batida macia no novelo
+    function playPawSwatSound() {
+      if (!audioEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      // Thump grave
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(190, now);
+      osc.frequency.exponentialRampToValueAtTime(42, now + 0.12);
+
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.15);
+
+      // Whoosh suave de vento da patinha
+      const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.1, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < noiseBuffer.length; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      const whiteNoise = audioCtx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      const noiseFilter = audioCtx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.value = 1200;
+      noiseFilter.Q.value = 2;
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.12, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      whiteNoise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+      whiteNoise.start(now);
+      whiteNoise.stop(now + 0.1);
+    }
+
+    // Som de Guizo Metálico (sininho)
+    function playBellSound() {
+      if (!audioEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const harmonics = [1680, 2460, 3520];
+      harmonics.forEach((freq, idx) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        gain.gain.setValueAtTime(0.08 / (idx + 1), now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.39);
+      });
+    }
+
+    // Som de Bolha de Sabão Estourando
+    function playBubblePopSound() {
+      if (!audioEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(360, now);
+      osc.frequency.exponentialRampToValueAtTime(820, now + 0.08);
+
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.095);
+    }
+
+    // Som de Ronrom suave contínuo
+    let purrOsc = null;
+    let purrGain = null;
+    let isPurring = false;
+
+    function togglePurr() {
+      if (!audioEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      if (isPurring) {
+        if (purrGain) {
+          purrGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+          setTimeout(() => {
+            if (purrOsc) { purrOsc.stop(); purrOsc.disconnect(); purrOsc = null; }
+          }, 350);
+        }
+        isPurring = false;
+        document.getElementById('cat-mood-label').textContent = 'Brincalhão';
+        return;
+      }
+
+      const now = audioCtx.currentTime;
+      purrOsc = audioCtx.createOscillator();
+      const modOsc = audioCtx.createOscillator();
+      const modGain = audioCtx.createGain();
+      purrGain = audioCtx.createGain();
+
+      purrOsc.type = 'sawtooth';
+      purrOsc.frequency.setValueAtTime(28, now);
+
+      modOsc.type = 'sine';
+      modOsc.frequency.setValueAtTime(24, now);
+      modGain.gain.setValueAtTime(12, now);
+      modOsc.connect(purrOsc.frequency);
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(110, now);
+
+      purrGain.gain.setValueAtTime(0.001, now);
+      purrGain.gain.linearRampToValueAtTime(0.18, now + 0.2);
+
+      purrOsc.connect(filter);
+      filter.connect(purrGain);
+      purrGain.connect(audioCtx.destination);
+
+      modOsc.start(now);
+      purrOsc.start(now);
+      isPurring = true;
+      document.getElementById('cat-mood-label').textContent = 'Ronronando Feliz 🥰';
+
+      setTimeout(() => {
+        if (isPurring) togglePurr();
+      }, 4200);
+    }
+
+    // Controle do botão de som na Top Bar
+    const soundToggleBtn = document.getElementById('sound-toggle-btn');
+    const soundIcon = document.getElementById('sound-icon');
+    const soundLabel = document.getElementById('sound-label');
+
+    soundToggleBtn.addEventListener('click', () => {
+      initAudio();
+      audioEnabled = !audioEnabled;
+      if (audioEnabled) {
+        soundIcon.textContent = '🔊';
+        soundLabel.textContent = 'Som Ativado';
+        soundToggleBtn.classList.remove('opacity-60');
+        playCatMeow();
+      } else {
+        soundIcon.textContent = '🔇';
+        soundLabel.textContent = 'Silenciado';
+        soundToggleBtn.classList.add('opacity-60');
+      }
+    });
+
+    document.getElementById('btn-meow').addEventListener('click', () => {
+      playCatMeow();
+      showCatSpeech('Miau! Vamos brincar mais? 🐾');
+    });
+
+    document.getElementById('btn-purr').addEventListener('click', () => {
+      togglePurr();
+      showCatSpeech('Prrrr... que delícia de carinho! 💤');
+      spawnHeartBurst(window.innerWidth / 2, window.innerHeight * 0.4);
+    });
+
+    document.getElementById('pet-oliver-btn').addEventListener('click', () => {
+      togglePurr();
+      playCatMeow();
+      showCatSpeech('Você fez carinho no Oliver! ❤️');
+      const rect = document.getElementById('cat-interactive-wrapper').getBoundingClientRect();
+      spawnHeartBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    });
+
+    // Clique direto no Oliver dá carinho!
+    document.getElementById('cat-interactive-wrapper').addEventListener('click', (e) => {
+      togglePurr();
+      playCatMeow();
+      showCatSpeech('Ronrom... adoro carinho! 🐾');
+      spawnHeartBurst(e.clientX, e.clientY);
+    });
+
+
+    /* ========================================================
+       2. FÍSICA DO FIO, DA BOLINHA E BOLHAS DE SABÃO
+       ======================================================== */
+    const canvas = document.getElementById('physics-canvas');
+    const ctx = canvas.getContext('2d');
+    const ballShadow = document.getElementById('ball-shadow');
+    const backToCatBtn = document.getElementById('back-to-cat-btn');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Posição do Mouse / Cursor
+    const mouse = {
+      x: window.innerWidth * 0.55,
+      y: window.innerHeight * 0.4,
+      targetX: window.innerWidth * 0.55,
+      targetY: window.innerHeight * 0.4,
+      isHoveringInteractive: false,
+      isMouseDown: false,
+      hasMoved: false
+    };
+
+    // Ponto de âncora no topo do teto
+    const anchor = {
+      x: mouse.x,
+      y: 0
+    };
+
+    // Física da Bolinha / Brinquedo no cursor
+    const ball = {
+      x: mouse.x,
+      y: mouse.y,
+      vx: 0,
+      vy: 0,
+      radius: 21,
+      currentScale: 1.0,
+      targetScale: 1.0,
+      impulseX: 0,
+      impulseY: 0,
+      swingAngle: 0,
+      toyType: 'yarn'
+    };
+
+    // Bolinhas de sabão flutuantes do Ofurô
+    const bubbles = [];
+    for (let i = 0; i < 9; i++) {
+      bubbles.push({
+        x: Math.random() * window.innerWidth,
+        y: window.innerHeight + Math.random() * 500,
+        r: 13 + Math.random() * 16,
+        speedY: 0.5 + Math.random() * 0.9,
+        wobbleSpeed: 0.0016 + Math.random() * 0.002,
+        seed: Math.random() * 100
+      });
+    }
+
+    // Nós do fio simulados com Verlet
+    const NUM_SEGMENTS = 14;
+    const ropeNodes = [];
+    for (let i = 0; i <= NUM_SEGMENTS; i++) {
+      ropeNodes.push({
+        x: mouse.x,
+        y: (mouse.y / NUM_SEGMENTS) * i,
+        oldX: mouse.x,
+        oldY: (mouse.y / NUM_SEGMENTS) * i,
+        pinned: i === 0
+      });
+    }
+
+    // Escuta movimento do mouse na página
+    window.addEventListener('mousemove', (e) => {
+      initAudio();
+      mouse.targetX = e.clientX;
+      mouse.targetY = e.clientY;
+      mouse.hasMoved = true;
+      document.getElementById('hint-drag').style.display = 'none';
+
+      const target = e.target;
+      if (target && target.closest('a, button, select, input, textarea, [role="button"]')) {
+        mouse.isHoveringInteractive = true;
+        ball.targetScale = 1.25;
+      } else {
+        mouse.isHoveringInteractive = false;
+        ball.targetScale = mouse.isMouseDown ? 0.85 : 1.0;
+      }
+    });
+
+    window.addEventListener('mousedown', () => {
+      initAudio();
+      mouse.isMouseDown = true;
+      ball.targetScale = 0.85;
+      if (ball.toyType === 'yarn') {
+        spawnPawParticles(ball.x, ball.y, '✨');
+      } else if (ball.toyType === 'bell') {
+        playBellSound();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      mouse.isMouseDown = false;
+      ball.targetScale = mouse.isHoveringInteractive ? 1.25 : 1.0;
+    });
+
+    // Touch Support
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) {
+        initAudio();
+        mouse.targetX = e.touches[0].clientX;
+        mouse.targetY = e.touches[0].clientY;
+        mouse.hasMoved = true;
+      }
+    }, { passive: true });
+
+    // Alternar brinquedo no fio
+    const toyButtons = document.querySelectorAll('.toy-select-btn');
+    const toyIndicator = document.getElementById('toy-indicator');
+    const toyNames = {
+      yarn: 'Novelo de Lã Spa 🟣',
+      bell: 'Guizo com Sininho 🟡',
+      feather: 'Peninha Flutuante 🪶',
+      laser: 'Laser Vermelho 🔴'
+    };
+
+    toyButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        initAudio();
+        const toy = btn.dataset.toy;
+        ball.toyType = toy;
+        toyIndicator.textContent = toyNames[toy];
+        toyButtons.forEach(b => {
+          b.className = 'toy-select-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition active:scale-95 bg-gray-50 text-gray-700 border-gray-200 hover:bg-purple-50';
+        });
+        btn.className = 'toy-select-btn flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-xs font-semibold transition active:scale-95 bg-purple-600 text-white border-purple-600 shadow-sm';
+        
+        if (toy === 'bell') playBellSound();
+        else if (toy === 'yarn') playPawSwatSound();
+        else playCatMeow();
+
+        showCatSpeech(`Oba! Agora vamos brincar com ${toyNames[toy]}! 😻`);
+      });
+    });
+
+    // Modo automático: Bolinha balança sozinha
+    let autoPlayActive = false;
+    let autoPlayTimer = 0;
+    const btnAutoPlay = document.getElementById('btn-auto-play');
+    const autoPlayLabel = document.getElementById('auto-play-label');
+
+    btnAutoPlay.addEventListener('click', () => {
+      autoPlayActive = !autoPlayActive;
+      if (autoPlayActive) {
+        btnAutoPlay.classList.add('bg-purple-600', 'text-white');
+        btnAutoPlay.classList.remove('bg-white', 'text-purple-700');
+        autoPlayLabel.textContent = 'Parar Balanço';
+        showCatSpeech('Olha como a bolinha balança sozinha! 🎪');
+      } else {
+        btnAutoPlay.classList.remove('bg-purple-600', 'text-white');
+        btnAutoPlay.classList.add('bg-white', 'text-purple-700');
+        autoPlayLabel.textContent = 'Balançar Bolinha Sozinha';
+      }
+    });
+
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 450) {
+        backToCatBtn.classList.add('visible');
+      } else {
+        backToCatBtn.classList.remove('visible');
+      }
+    });
+
+
+    /* ========================================================
+       3. INTERAÇÃO E CINEMÁTICA ULTRA-HD DO GATO OLIVER
+       ======================================================== */
+    const catWrapper = document.getElementById('cat-interactive-wrapper');
+    const catStageBox = document.getElementById('cat-stage-box');
+    const swatCounterEl = document.getElementById('swat-counter');
+    const catSpeech = document.getElementById('cat-speech');
+    const speechText = document.getElementById('speech-text');
+    const proximityStatus = document.getElementById('proximity-status');
+    const pawRippleEffect = document.getElementById('paw-ripple-effect');
+    const couponBanner = document.getElementById('coupon-banner');
+    const discountBadge = document.getElementById('discount-badge');
+
+    let swatCount = 0;
+    let isSwatting = false;
+    let swatCooldown = false;
+    let hasUnlockedCoupon = false;
+
+    /* Patinha fotorealista sobreposta: rastreia e agarra a bolinha.
+       Geometria medida em assets/paw_arm.png (mesma origem da imagem base):
+       - caixa do recorte: left 55.56%, top 13.57%, largura 17.7% do palco
+       - pivô (ombro) em 36.5%/97.9% da caixa = 62.0%/49.4% da imagem
+       - almofada da pata em 67.8%/26.2% da imagem (ponto usado no ripple) */
+    const pawOverlay = document.getElementById('cat-paw-overlay');
+    const pawOverlay2 = document.getElementById('cat-paw-overlay-2');
+    const PAW_PIVOT_FX = 0.620;
+    const PAW_PIVOT_FY = 0.494;
+    const REST_ANGLE = Math.atan2(0.262 - PAW_PIVOT_FY, 0.678 - PAW_PIVOT_FX);
+    const MAX_PAW_ROT = 0.42;
+    let pawRot = 0;
+    let pawRotVel = 0;
+    let pawScale = 1;
+    let pawScaleVel = 0;
+    let pawWiggle = 0;
+    let pawGrab = null; // {phase:'reach'|'hold'|'retreat', t, captured}
+
+    function showCatSpeech(msg) {
+      speechText.textContent = msg;
+      catSpeech.classList.remove('opacity-0', 'scale-90');
+      catSpeech.classList.add('opacity-100', 'scale-100');
+      clearTimeout(window.speechTimeout);
+      window.speechTimeout = setTimeout(() => {
+        catSpeech.classList.remove('opacity-100', 'scale-100');
+        catSpeech.classList.add('opacity-90', 'scale-98');
+      }, 3500);
+    }
+
+    function spawnPawParticles(x, y, text) {
+      const el = document.createElement('div');
+      el.className = 'pop-particle font-brand font-black text-sm text-purple-700 bg-white/95 px-3 py-1 rounded-full shadow-lg border border-purple-200';
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      el.style.setProperty('--dx', `${(Math.random() - 0.5) * 60}px`);
+      el.style.setProperty('--dy', `${-50 - Math.random() * 40}px`);
+      el.style.setProperty('--rot', `${(Math.random() - 0.5) * 30}deg`);
+      el.textContent = text || '🐾 BOTE!';
+      document.getElementById('particles-container').appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+
+    function spawnHeartBurst(x, y) {
+      const hearts = ['💖', '🐾', '🥰', '✨', '💜'];
+      for (let i = 0; i < 6; i++) {
+        const el = document.createElement('div');
+        el.className = 'pop-particle text-2xl';
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.setProperty('--dx', `${(Math.random() - 0.5) * 90}px`);
+        el.style.setProperty('--dy', `${-60 - Math.random() * 60}px`);
+        el.style.setProperty('--rot', `${(Math.random() - 0.5) * 45}deg`);
+        el.textContent = hearts[i % hearts.length];
+        document.getElementById('particles-container').appendChild(el);
+        setTimeout(() => el.remove(), 950);
+      }
+    }
+
+
+    /* ========================================================
+       4. LOOP PRINCIPAL DE ANIMAÇÃO (60 FPS)
+       ======================================================== */
+    let lastTime = performance.now();
+
+    function renderLoop(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.05);
+      lastTime = time;
+
+      // Movimento automático se ativado
+      if (autoPlayActive) {
+        autoPlayTimer += dt * 2.2;
+        const rect = catStageBox.getBoundingClientRect();
+        const centerX = rect.left + rect.width * 0.678;
+        const centerY = rect.top + rect.height * 0.262;
+        mouse.targetX = centerX + Math.sin(autoPlayTimer) * 110;
+        mouse.targetY = centerY + Math.cos(autoPlayTimer * 1.5) * 65;
+      }
+
+      // Suaviza escala do brinquedo
+      ball.currentScale += (ball.targetScale - ball.currentScale) * 0.2;
+
+      // Suaviza posição do mouse
+      mouse.x += (mouse.targetX - mouse.x) * 0.4;
+      mouse.y += (mouse.targetY - mouse.y) * 0.4;
+
+      // Topo do fio acompanha suavemente o mouse no teto
+      anchor.x += (mouse.x - anchor.x) * 0.15;
+
+      // Física da bolinha
+      const springK = 0.35;
+      const damping = 0.78;
+      
+      const fx = (mouse.x - ball.x) * springK + ball.impulseX;
+      const fy = (mouse.y - ball.y) * springK + ball.impulseY;
+      
+      ball.vx = (ball.vx + fx) * damping;
+      ball.vy = (ball.vy + fy) * damping;
+
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      ball.impulseX *= 0.82;
+      ball.impulseY *= 0.82;
+
+      ball.swingAngle = Math.atan2(ball.vx, 30);
+
+      // Simulação do fio com Verlet
+      ropeNodes[0].x = anchor.x;
+      ropeNodes[0].y = anchor.y;
+
+      const lastNode = ropeNodes[NUM_SEGMENTS];
+      lastNode.x = ball.x;
+      lastNode.y = ball.y - (ball.toyType === 'laser' ? 0 : 12);
+
+      for (let i = 1; i < NUM_SEGMENTS; i++) {
+        const node = ropeNodes[i];
+        const vx = (node.x - node.oldX) * 0.88;
+        const vy = (node.y - node.oldY) * 0.88 + 0.35;
+        node.oldX = node.x;
+        node.oldY = node.y;
+        node.x += vx;
+        node.y += vy;
+      }
+
+      for (let iter = 0; iter < 4; iter++) {
+        for (let i = 0; i < NUM_SEGMENTS; i++) {
+          const n1 = ropeNodes[i];
+          const n2 = ropeNodes[i + 1];
+          const dx = n2.x - n1.x;
+          const dy = n2.y - n1.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          const targetDist = Math.hypot(anchor.x - ball.x, anchor.y - ball.y) / NUM_SEGMENTS;
+          const diff = (dist - targetDist) / dist;
+
+          if (!n1.pinned) {
+            n1.x += dx * 0.5 * diff;
+            n1.y += dy * 0.5 * diff;
+          }
+          if (i + 1 !== NUM_SEGMENTS) {
+            n2.x -= dx * 0.5 * diff;
+            n2.y -= dy * 0.5 * diff;
+          }
+        }
+      }
+
+      // DESENHO NO CANVAS
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. ATUALIZA E DESENHA BOLHAS DE SABÃO DO SPA
+      bubbles.forEach(b => {
+        b.y -= b.speedY;
+        b.x += Math.sin(time * b.wobbleSpeed + b.seed) * 0.45;
+        if (b.y < -50) {
+          b.y = window.innerHeight + 40;
+          b.x = Math.random() * window.innerWidth;
+        }
+
+        // Desenha a bolha iridescente
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(230, 220, 255, 0.16)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(192, 132, 252, 0.5)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+
+        // Brilho da bolha
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Estoura ao tocar na bolinha
+        const distToBall = Math.hypot(ball.x - b.x, ball.y - b.y);
+        if (distToBall < ball.radius + b.r) {
+          playBubblePopSound();
+          spawnPawParticles(b.x, b.y, '🫧');
+          b.y = window.innerHeight + 50;
+          b.x = Math.random() * window.innerWidth;
+        }
+      });
+
+      // 2. DESENHA O FIO DO CURSOR
+      if (ball.toyType !== 'laser') {
+        ctx.beginPath();
+        ctx.moveTo(ropeNodes[0].x, ropeNodes[0].y);
+        for (let i = 1; i < NUM_SEGMENTS; i++) {
+          const xc = (ropeNodes[i].x + ropeNodes[i + 1].x) / 2;
+          const yc = (ropeNodes[i].y + ropeNodes[i + 1].y) / 2;
+          ctx.quadraticCurveTo(ropeNodes[i].x, ropeNodes[i].y, xc, yc);
+        }
+        ctx.lineTo(lastNode.x, lastNode.y);
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+
+        ctx.strokeStyle = '#f3e8ff';
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+      }
+
+      // 3. DESENHA A BOLINHA / BRINQUEDO
+      ctx.save();
+      ctx.translate(ball.x, ball.y);
+      ctx.rotate(ball.swingAngle);
+      ctx.scale(ball.currentScale, ball.currentScale);
+
+      if (mouse.isHoveringInteractive) {
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(0, 0, 30, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (ball.toyType === 'yarn') {
+        // NOVELO DE LÃ ROXO SPA
+        const r = 21;
+        const glow = ctx.createRadialGradient(0, 0, 5, 0, 0, 32);
+        glow.addColorStop(0, 'rgba(192, 132, 252, 0.4)');
+        glow.addColorStop(1, 'rgba(192, 132, 252, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(0, 0, 32, 0, Math.PI * 2);
+        ctx.fill();
+
+        const grad = ctx.createRadialGradient(-6, -6, 2, 0, 0, r);
+        grad.addColorStop(0, '#d8b4fe');
+        grad.addColorStop(0.4, '#9333ea');
+        grad.addColorStop(0.85, '#6b21a8');
+        grad.addColorStop(1, '#4c1d95');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#f3e8ff';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.ellipse(0, -2, r * 0.85, r * 0.45, 0.25, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.ellipse(2, 2, r * 0.9, r * 0.55, -0.6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#e9d5ff';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.ellipse(-3, 4, r * 0.75, r * 0.4, 0.8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(0, -r + 2, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.arc(-1, -r + 1, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(0, r - 2);
+        ctx.quadraticCurveTo(Math.sin(time * 0.008) * 8, r + 10, Math.cos(time * 0.006) * 5, r + 18);
+        ctx.stroke();
+
+      } else if (ball.toyType === 'bell') {
+        // GUIZO DOURADO
+        const r = 20;
+        const grad = ctx.createRadialGradient(-5, -5, 2, 0, 0, r);
+        grad.addColorStop(0, '#fef08a');
+        grad.addColorStop(0.35, '#f59e0b');
+        grad.addColorStop(0.85, '#b45309');
+        grad.addColorStop(1, '#78350f');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#451a03';
+        ctx.beginPath();
+        ctx.arc(0, 5, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(-10, 4, 20, 2.5);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+        ctx.beginPath();
+        ctx.arc(-6, -6, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (ball.toyType === 'feather') {
+        // PENINHA FLUTUANTE
+        const angleFlutter = Math.sin(time * 0.01) * 0.25;
+        ctx.rotate(angleFlutter);
+        ctx.fillStyle = '#f472b6';
+        ctx.beginPath();
+        ctx.ellipse(0, 8, 8, 22, 0.1, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath();
+        ctx.ellipse(-3, 12, 6, 18, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#c084fc';
+        ctx.beginPath();
+        ctx.ellipse(3, 10, 6, 16, 0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -6);
+        ctx.lineTo(0, 26);
+        ctx.stroke();
+
+      } else if (ball.toyType === 'laser') {
+        // LASER VERMELHO
+        const grad = ctx.createRadialGradient(0, 0, 1, 0, 0, 28);
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.2, '#ef4444');
+        grad.addColorStop(0.5, 'rgba(239, 68, 68, 0.5)');
+        grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, 28, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
+      ballShadow.style.left = `${ball.x}px`;
+      ballShadow.style.top = `${ball.y + 40}px`;
+      ballShadow.style.opacity = ball.toyType === 'laser' ? '0' : '0.4';
+
+
+      /* ========================================================
+         5. CINEMÁTICA ULTRA-HD: PERSPECTIVA 3D E BOTE DO OLIVER
+         ======================================================== */
+      const rect = catStageBox.getBoundingClientRect();
+      const catCenterX = rect.left + rect.width * 0.5;
+      const catCenterY = rect.top + rect.height * 0.5;
+
+      // Posição exata da Patinha Levantada na imagem Ultra-HD (67.8% X, 26.2% Y)
+      const pawPadScreenX = rect.left + rect.width * 0.678;
+      const pawPadScreenY = rect.top + rect.height * 0.262;
+
+      // 1. INCLINAÇÃO 3D REALISTA (Toda a imagem HD se inclina para olhar o cursor)
+      const deltaX = ball.x - catCenterX;
+      const deltaY = ball.y - catCenterY;
+      const tiltY = Math.max(-9, Math.min(9, deltaX * 0.02));
+      const tiltX = Math.max(-7, Math.min(7, -deltaY * 0.016));
+
+      if (!isSwatting) {
+        catWrapper.style.transform = `rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
+      }
+
+      // 2. PROXIMIDADE DA PATINHA
+      const distToPaw = Math.hypot(ball.x - pawPadScreenX, ball.y - pawPadScreenY);
+
+      if (distToPaw < 180) {
+        proximityStatus.textContent = '🐾 Oliver está pronto para o bote!';
+        proximityStatus.parentElement.classList.add('bg-amber-100', 'text-amber-900');
+        proximityStatus.parentElement.classList.remove('bg-white/90', 'text-purple-900');
+      } else {
+        proximityStatus.textContent = 'Aproxime a bolinha da patinha erguida!';
+        proximityStatus.parentElement.classList.remove('bg-amber-100', 'text-amber-900');
+        proximityStatus.parentElement.classList.add('bg-white/90', 'text-purple-900');
+      }
+
+      // 3. RASTREAMENTO + AGARRAR DA PATINHA FOTOREALISTA
+      const pivotX = rect.left + rect.width * PAW_PIVOT_FX;
+      const pivotY = rect.top + rect.height * PAW_PIVOT_FY;
+      const restPadDist = Math.hypot(pawPadScreenX - pivotX, pawPadScreenY - pivotY);
+
+      // Ângulo da bolinha visto do ombro da pata
+      const angleToBall = Math.atan2(ball.y - pivotY, ball.x - pivotX);
+      let rawDelta = angleToBall - REST_ANGLE;
+      while (rawDelta > Math.PI) rawDelta -= Math.PI * 2;
+      while (rawDelta < -Math.PI) rawDelta += Math.PI * 2;
+      const clampedDelta = Math.max(-MAX_PAW_ROT, Math.min(MAX_PAW_ROT, rawDelta));
+
+      let targetRot = Math.sin(time * 0.0011) * 0.028; // balanço natural em repouso
+      let targetScale = 1;
+      let pawStiff = 0.085;
+      let pawDamp = 0.82;
+      let paw2Opacity = 0;
+      let paw2X = 0, paw2Y = 0;
+
+      if (!pawGrab && distToPaw < 420) {
+        // Acompanha a bolinha com o movimento do ombro
+        targetRot = clampedDelta;
+        targetScale = 1 + (1 - Math.min(1, distToPaw / 420)) * 0.12;
+      }
+
+      if (distToPaw < 115 && !swatCooldown && !pawGrab) {
+        pawGrab = { phase: 'reach', t: 0, captured: false };
+        isSwatting = true;
+      }
+
+      if (pawGrab) {
+        pawGrab.t += dt;
+
+        if (pawGrab.phase === 'reach') {
+          // Extensão rápida da pata em direção à bolinha
+          pawStiff = 0.38;
+          pawDamp = 0.72;
+          targetRot = clampedDelta;
+          targetScale = 1.11;
+          pawWiggle = Math.sin(pawGrab.t * 55) * 1.6;
+          paw2Opacity = Math.min(1, pawGrab.t * 9);
+          paw2X = Math.max(-10, Math.min(46, 30 + (ball.x - pawPadScreenX) * 0.3));
+          paw2Y = Math.max(-20, Math.min(20, (ball.y - pawPadScreenY) * 0.3));
+
+          if (pawGrab.t >= 0.12) {
+            if (distToPaw < 85) {
+              pawGrab.phase = 'hold';
+              pawGrab.t = 0;
+              pawGrab.captured = true;
+            } else {
+              pawGrab.phase = 'retreat';
+              pawGrab.t = 0;
+            }
+          }
+        } else if (pawGrab.phase === 'hold') {
+          // Agarrou: aperta a bolinha entre as patas
+          pawStiff = 0.42;
+          pawDamp = 0.70;
+          targetRot = clampedDelta;
+          targetScale = 1.12;
+          pawWiggle = Math.sin(pawGrab.t * 42) * 2.4;
+          paw2Opacity = 1;
+          paw2X = Math.max(-10, Math.min(46, 30 + (ball.x - pawPadScreenX) * 0.3));
+          paw2Y = Math.max(-20, Math.min(20, (ball.y - pawPadScreenY) * 0.3));
+
+          // Bolinha presa na almofada da pata
+          const padAng = REST_ANGLE + pawRot;
+          const holdX = pivotX + Math.cos(padAng) * restPadDist * pawScale;
+          const holdY = pivotY + Math.sin(padAng) * restPadDist * pawScale;
+          ball.impulseX = 0;
+          ball.impulseY = 0;
+          ball.vx *= 0.3;
+          ball.vy *= 0.3;
+          ball.x += (holdX - ball.x) * 0.45;
+          ball.y += (holdY - ball.y) * 0.45;
+
+          if (pawGrab.t >= 0.45) {
+            // ===== SOLTURA: efeitos do bote =====
+            swatCooldown = true;
+            swatCount++;
+            swatCounterEl.textContent = swatCount;
+
+            if (swatCount >= 5 && !hasUnlockedCoupon) {
+              hasUnlockedCoupon = true;
+              couponBanner.classList.remove('hidden');
+              discountBadge.classList.remove('hidden');
+              updatePriceEstimate();
+              showCatSpeech('🎉 PARABÉNS! Você ganhou 15% OFF! Cupom OLIVER15 aplicado! 🎁');
+              spawnHeartBurst(window.innerWidth / 2, window.innerHeight * 0.4);
+            }
+
+            playPawSwatSound();
+            if (ball.toyType === 'bell') playBellSound();
+            if (swatCount % 3 === 0) playCatMeow();
+
+            const repelAngle = Math.atan2(ball.y - pawPadScreenY, ball.x - pawPadScreenX);
+            const pushForce = 34;
+            ball.impulseX = Math.cos(repelAngle) * pushForce + (Math.random() - 0.5) * 15;
+            ball.impulseY = Math.sin(repelAngle) * pushForce - 22;
+
+            pawRippleEffect.classList.remove('paw-shockwave');
+            void pawRippleEffect.offsetWidth;
+            pawRippleEffect.classList.add('paw-shockwave');
+
+            const lungeOffsetX = Math.max(-18, Math.min(18, (ball.x - pawPadScreenX) * 0.15));
+            const lungeOffsetY = Math.max(-16, Math.min(16, (ball.y - pawPadScreenY) * 0.15));
+            catWrapper.style.transition = 'transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1)';
+            catWrapper.style.transform = `translate(${lungeOffsetX}px, ${lungeOffsetY}px) scale(1.05) rotateY(${tiltY * 1.2}deg) rotateX(${tiltX * 1.2}deg)`;
+
+            const msgs = [
+              'Agarrei! Hihi 😸',
+              'Peguei com as patinhas! 🐾',
+              'Belo reflexo! ⚡',
+              'Adoro esse brinquedo! ❤️',
+              'Mais uma vez! 🎾'
+            ];
+            showCatSpeech(msgs[Math.floor(Math.random() * msgs.length)]);
+            spawnPawParticles(pawPadScreenX, pawPadScreenY, `+1 BOTE! 🐾`);
+
+            setTimeout(() => {
+              catWrapper.style.transition = 'transform 0.25s ease-out';
+              catWrapper.style.transform = `rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
+              setTimeout(() => {
+                isSwatting = false;
+                catWrapper.style.transition = 'transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1)';
+              }, 260);
+            }, 110);
+
+            setTimeout(() => {
+              swatCooldown = false;
+            }, 620);
+
+            pawGrab.phase = 'retreat';
+            pawGrab.t = 0;
+          }
+        } else if (pawGrab.phase === 'retreat') {
+          // Volta à pose de repouso
+          pawStiff = 0.10;
+          pawDamp = 0.84;
+          paw2Opacity = Math.max(0, 1 - pawGrab.t * 7);
+          if (pawGrab.t >= 0.2) pawGrab = null;
+        }
+      }
+
+      // Física de mola: suave no rastreio, rápida e elástica no bote
+      const frameK = dt * 60;
+      pawRotVel = (pawRotVel + (targetRot - pawRot) * pawStiff * frameK) * Math.pow(pawDamp, frameK);
+      pawRot += pawRotVel;
+      pawScaleVel = (pawScaleVel + (targetScale - pawScale) * pawStiff * frameK) * Math.pow(pawDamp, frameK);
+      pawScale += pawScaleVel;
+      pawWiggle *= Math.pow(0.88, frameK);
+      const pawDeg = pawRot * 57.2958 + pawWiggle;
+      pawOverlay.style.transform = `rotate(${pawDeg}deg) scale(${pawScale})`;
+      pawOverlay2.style.opacity = paw2Opacity;
+      if (paw2Opacity > 0) {
+        pawOverlay2.style.transform = `translate(${paw2X}px, ${paw2Y}px) scaleX(-1) rotate(${-pawDeg * 0.45}deg)`;
+      }
+
+      requestAnimationFrame(renderLoop);
+    }
+
+    requestAnimationFrame(renderLoop);
+
+
+    /* ========================================================
+       6. SLIDER INTERATIVO ANTES & DEPOIS DO BANHO
+       ======================================================== */
+    const beforeAfterContainer = document.getElementById('before-after-container');
+    const beforeLayer = document.getElementById('before-layer');
+    const sliderHandle = document.getElementById('slider-handle');
+
+    let isSliding = false;
+
+    function updateSlider(clientX) {
+      const rect = beforeAfterContainer.getBoundingClientRect();
+      const pos = Math.max(0, Math.min(rect.width, clientX - rect.left));
+      const percentage = (pos / rect.width) * 100;
+      beforeLayer.style.width = `${percentage}%`;
+      sliderHandle.style.left = `${percentage}%`;
+    }
+
+    beforeAfterContainer.addEventListener('mousedown', (e) => {
+      isSliding = true;
+      updateSlider(e.clientX);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isSliding) updateSlider(e.clientX);
+    });
+
+    window.addEventListener('mouseup', () => {
+      isSliding = false;
+    });
+
+    beforeAfterContainer.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) updateSlider(e.touches[0].clientX);
+    }, { passive: true });
+
+
+    /* ========================================================
+       7. CALCULADORA DINÂMICA DE PREÇOS EM TEMPO REAL
+       ======================================================== */
+    const petSizeSelect = document.getElementById('pet-size');
+    const petServiceSelect = document.getElementById('pet-service');
+    const priceDisplay = document.getElementById('price-display');
+    const priceNote = document.getElementById('price-note');
+    const timeDisplay = document.getElementById('time-display');
+
+    const serviceBasePrices = {
+      'Banho Terapêutico Real': { base: 69, time: '~60 minutos' },
+      'Ofurô de Ozônio Relaxante': { base: 95, time: '~45 minutos' },
+      'Tosa Estilizada Bebê': { base: 89, time: '~90 minutos' },
+      'Day Spa Um Dia de Rei': { base: 180, time: '~3 horas' },
+      'Plano Mensal Spa Real': { base: 360, time: 'Assinatura Mensal' }
+    };
+
+    const sizeMultipliers = {
+      'Pequeno (até 8kg)': 1.0,
+      'Médio (8kg a 20kg)': 1.25,
+      'Grande (acima de 20kg)': 1.55
+    };
+
+    function updatePriceEstimate() {
+      const service = petServiceSelect.value;
+      const size = petSizeSelect.value;
+
+      const data = serviceBasePrices[service] || { base: 69, time: '~60 min' };
+      const mult = sizeMultipliers[size] || 1.0;
+      let total = data.base * mult;
+
+      if (hasUnlockedCoupon) {
+        total = total * 0.85; // 15% de desconto
+      }
+
+      priceDisplay.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+      priceNote.textContent = `${size} · ${service}`;
+      timeDisplay.textContent = data.time;
+    }
+
+    petSizeSelect.addEventListener('change', updatePriceEstimate);
+    petServiceSelect.addEventListener('change', updatePriceEstimate);
+    updatePriceEstimate();
+
+
+    /* ========================================================
+       8. FORMULÁRIO DE AGENDAMENTO VIA WHATSAPP
+       ======================================================== */
+    const bookingForm = document.getElementById('booking-form');
+    bookingForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      initAudio();
+
+      const tutorName = document.getElementById('tutor-name').value;
+      const tutorPhone = document.getElementById('tutor-phone').value;
+      const petType = document.getElementById('pet-type').value;
+      const petSize = document.getElementById('pet-size').value;
+      const petService = document.getElementById('pet-service').value;
+      const bookingDate = document.getElementById('booking-date').value;
+      const petName = document.getElementById('pet-name').value;
+      const finalPrice = priceDisplay.textContent;
+
+      let couponText = hasUnlockedCoupon ? `%0A*Cupom Ativo:* OLIVER15 (15% OFF Aplicado!)` : ``;
+
+      const msg = `🐾 *NOVO AGENDAMENTO - SPA PET VIP* 👑%0A%0A` +
+        `*Tutor(a):* ${encodeURIComponent(tutorName)}%0A` +
+        `*WhatsApp:* ${encodeURIComponent(tutorPhone)}%0A` +
+        `*Pet:* ${encodeURIComponent(petName)} (${encodeURIComponent(petType)} - ${encodeURIComponent(petSize)})%0A` +
+        `*Tratamento:* ${encodeURIComponent(petService)}%0A` +
+        `*Data Desejada:* ${encodeURIComponent(bookingDate)}%0A` +
+        `*Valor Estimado:* ${encodeURIComponent(finalPrice)}${couponText}%0A%0A` +
+        `_Agendado através do site interativo com o Oliver em Ultra-HD!_`;
+
+      playCatMeow();
+      showCatSpeech('Agendamento pronto! Te vejo em breve no Spa Pet! 🐾');
+      spawnHeartBurst(window.innerWidth / 2, window.innerHeight * 0.7);
+
+      setTimeout(() => {
+        window.open(`https://wa.me/5511999998888?text=${msg}`, '_blank');
+      }, 600);
+    });
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    document.getElementById('booking-date').min = tomorrow.toISOString().split('T')[0];
+  </script>
+
+</body>
+</html>

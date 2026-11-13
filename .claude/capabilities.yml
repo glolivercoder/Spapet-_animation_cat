@@ -1,0 +1,65 @@
+# Roteamento Determinístico de Skills, MCPs e Segurança (Controle Dinâmico e Livre)
+global_rules:
+  always_active_skill: "skills/ponytail-core.md"
+  always_active_mcp: "context7"
+  max_concurrent_mcps: 10
+  state_files:
+    - "workspace/docs/brief.md"
+    - "workspace/docs/STATUS.md"
+
+routes:
+  - id: "market_validation"
+    trigger_keywords: ["ideia", "mercado", "concorrente", "viabilidade", "mvp", "concio"]
+    agent: "concio"
+    tier: "tier_1_premium"
+    activate_mcp: "browse-user"
+    output_file: "workspace/docs/market.md"
+
+  - id: "ui_frontend_design"
+    trigger_keywords: ["tela", "frontend", "ui", "design", "tailwind", "componente", "animação", "onlook"]
+    agent: "designer"
+    tier: "tier_2_cost_effective"
+    profile_aware: true
+    profile_ref: "workspace/docs/project.json"
+    activate_mcp: "21dev"
+    activate_skills:
+      - "skills/brand-design-agent/SKILL.md"
+    audit_skill_f4:
+      - "skills/web-design-guidelines/SKILL.md"
+
+  - id: "reui_shadcn_registry"
+    trigger_keywords: ["reui", "shadcn", "pro blocks", "blocks", "radix", "lucide", "componentes reui"]
+    agent: "designer"
+    tier: "tier_2_cost_effective"
+    profile_aware: true
+    profile_ref: "workspace/docs/project.json"
+    activate_mcp: "reui"
+    activate_skills:
+      - "skills/brand-design-agent/SKILL.md"
+
+  - id: "forms_auth_database_lgpd"
+    trigger_keywords: ["formulário", "cadastro", "login", "banco", "supabase", "tabela", "cpf", "email", "dados"]
+    agent: "secops_lgpd"
+    tier: "tier_2_cost_effective"
+    activate_skills:
+      - "skills/lgpd-check.md"
+    deterministic_hooks:
+      - "verify_supabase_rls"
+      - "update_lgpd_data_map"
+      - "gitleaks_precommit"
+
+  - id: "automation_workflows"
+    trigger_keywords: ["webhook", "automação", "n8n", "composio", "integração", "whatsapp", "email"]
+    agent: "automation_specialist"
+    tier: "tier_2_cost_effective"
+    use_local_rag: "lancedb/n8n_composio_templates"
+    requires_user_gate_approval: true
+
+  - id: "e2e_testing_and_bugfix"
+    trigger_keywords: ["teste", "bug", "erro", "validar", "playwright", "pentest"]
+    agent: "qa_runner"
+    tier: "tier_2_cost_effective"
+    activate_mcp: "playwright"
+    deterministic_hooks:
+      - "run_semgrep_local"
+      - "update_status_percentage"

@@ -1,0 +1,19 @@
+{
+  "combo": "Low_cust_code",
+  "base_url": "http://127.0.0.1:20128/v1",
+  "free_models_only": true,
+  "tiers": {
+    "tier_1_premium": {
+      "paid": "anthropic/claude-3-5-sonnet",
+      "free": "openrouter/google/gemini-2.5-flash:free"
+    },
+    "tier_2_cost_effective": {
+      "paid": "deepseek/deepseek-chat",
+      "free": "openrouter/deepseek/deepseek-r1:free"
+    },
+    "tier_3_triage": {
+      "paid": "google/gemini-2.5-flash",
+      "free": "openrouter/google/gemini-2.5-flash:free"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+version: 2
+presets:
+  astro: "Astro 7 + Tailwind v4 (CSS-first). JS mínimo; ilhas só se necessário. Meta: JS <= 50KB gzip, Lighthouse >= 95"
+  vite:  "Vite + React 19 + TS + Tailwind v4 + shadcn/ui + TanStack Router/Query + RHF + Zod + Supabase HOSPEDADO (RLS em 100%)"
+  next:  "Next.js 16 App Router + Tailwind v4 + shadcn/ui + Supabase. Só se SSR + login + SEO no mesmo app"
+skills: { design: [brand-design-agent], audit_f4: [web-design-guidelines] }
+profiles:
+  site_simples:       { preset: astro, start_from: ["onwidget/astrowind"], dials: {variance: 7, density: 3, motion: 4} }
+  site_institucional: { preset: astro, uses_vertical: true, start_from: ["AstroWind", "ScrewFast", "Accessible Astro Starter"], dials: {variance: 5, density: 4, motion: 3} }
+  crm_vertical:       { preset: vite, requires_vertical: true, domain_ref: odoo, start_from: ["satnaing/shadcn-admin (casca)", "marmelab/atomic-crm (dados e telas; dev local sem Docker: Supabase hospedado ou FakeRest)"], dials: {variance: 3, density: 7, motion: 2} }
+  crm_automacao:      { extends: crm_vertical, add_skills: ["czlonkowski/n8n-skills"], mcp_on_workflow_turn: n8n-mcp }
+  webapp_diverso:     { preset: "vite (padrão) | next (se SEO + login)", domain_ref: odoo_opcional, dials: {variance: 4, density: 6, motion: 3} }
+  automacao_n8n_composio: { preset: none, add_skills: ["czlonkowski/n8n-skills"] }
+  outro:              { concio_decide: true }
+verticals:        # sementes: o Concio confirma e expande em market.md
+  medico:      { odoo_ref: [contacts, crm, calendar, sale], particularidades: [consentimento, prontuário, convênios, retornos], compliance: saude_sensivel }
+  dentista:    { extends: medico, particularidades_add: [odontograma FDI, orçamento de tratamento com aprovação, recall semestral] }
+  veterinario: { odoo_ref: [contacts, crm, calendar, stock, sale], particularidades: [tutor com vários pets (espécie, raça, peso), vacinas com próxima dose, estoque], compliance: dados_pessoais }
+  advogado:    { odoo_ref: [contacts, crm, project, calendar, hr_timesheet, sale], particularidades: [processo (nº CNJ), partes, prazos fatais, andamentos, honorários e horas], compliance: sigilo_profissional }
+  pequena_empresa: { odoo_ref: [contacts, crm, sale_crm, sale, project], particularidades: [funil, orçamentos, tarefas e atividades], compliance: dados_pessoais }
+compliance:
+  saude_sensivel: "LGPD Art. 11 (dado sensível): minimização, RLS por clínica, audit log de leitura e escrita, base legal em data-map.md. Marcar REVISÃO JURÍDICA PENDENTE."
+  sigilo_profissional: "RLS por escritório, audit log, anexos criptografados. Marcar REVISÃO JURÍDICA PENDENTE."
+  dados_pessoais: "LGPD Art. 7 conforme data-map.md."
+

@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.tanstack/
+backups/
+.env
+.env.local
+*.log
+.DS_Store
+.playwright-mcp/

@@ -1,0 +1,33 @@
+{
+  "mcp": {
+    "devmaster-mcp": {
+      "type": "local",
+      "command": [
+        "python",
+        "-m",
+        "backend.mcp.devmaster_mcp_server"
+      ]
+    },
+    "reui": {
+      "type": "remote",
+      "url": "https://mcp.reui.io"
+    }
+  },
+  "$schema": "https://opencode.ai/config.json",
+  "model": "omniroute/Low_cust_code",
+  "provider": {
+    "omniroute": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OmniRoute Low_cust_code",
+      "options": {
+        "baseURL": "http://127.0.0.1:20128/v1",
+        "apiKey": "{env:OMNIROUTE_API_KEY}"
+      },
+      "models": {
+        "Low_cust_code": {
+          "name": "Low_cust_code"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+# SUPERVISION — Registro de execução
+
+| Quando | Módulo | Status | Detalhe |
+| ------ | ------ | ------ | ------- |
+| 2026-11-13T15:12:44.340839+00:00 | M1-fundacao | FAILED | sessão=ses_e2a882ef4ffel7FnOU0q3BV4Lc fila=q_1794582761814319400_c09b3b |
+| 2026-11-13T15:13:05.694631+00:00 | M5-ui | FAILED | sessão=ses_e2a882ef4ffel7FnOU0q3BV4Lc fila=q_1794582783160732600_f20239 |
+| 2026-11-13T15:31:25.674058+00:00 | M1-fundacao | FAILED | sessão=ses_e2a772662ffe5W16hYE0yR3Zxe fila=q_1794583878119797800_74b031 |
+| 2026-11-13T15:31:49.576461+00:00 | M5-ui | FAILED | sessão=ses_e2a772662ffe5W16hYE0yR3Zxe fila=q_1794583905041065100_7e9b6e |
+| 2026-11-13T15:33:27.747980+00:00 | M1-fundacao | FAILED | sessão=ses_e2a772662ffe5W16hYE0yR3Zxe fila=q_1794584003154537000_403662 |
+| 2026-11-13T15:33:51.346729+00:00 | M5-ui | FAILED | sessão=ses_e2a772662ffe5W16hYE0yR3Zxe fila=q_1794584026631550600_3474e0 |
