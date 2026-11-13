@@ -375,19 +375,10 @@
             <!-- ESTRUTURA DO GATINHO FOTOREALISTA EM ALTA DEFINIÇÃO -->
             <div id="cat-interactive-wrapper" class="cat-3d-model relative w-full h-full cursor-pointer will-change-transform transition-transform duration-75">
               
-              <!-- CAMADA DE RESPIRAÇÃO: base + patinhas se movem juntas -->
-              <div id="cat-breath" class="animate-breath absolute inset-0">
-                <!-- IMAGEM ULTRA-HD SEM A PATA (inpaint) — a pata é uma camada animada por cima -->
-                <img id="cat-main-img" src="assets/cat_body_no_paw_hd.webp" alt="Oliver - Gatinho Fotorealista Spa Pet em Ultra-HD" class="w-full h-full object-cover select-none pointer-events-none" />
-
-                <!-- PATINHA FOTOREALISTA SOBREPOSTA: segue e tenta agarrar a bolinha -->
-                <img id="cat-paw-overlay" src="assets/paw_arm_hd.png" alt="" aria-hidden="true"
-                     class="absolute pointer-events-none select-none"
-                     style="left:52.584%; top:9.109%; width:23.643%; transform-origin:39.89% 88.51%; will-change:transform;" />
-                <img id="cat-paw-overlay-2" src="assets/paw_arm_hd.png" alt="" aria-hidden="true"
-                     class="absolute pointer-events-none select-none"
-                     style="left:52.584%; top:9.109%; width:23.643%; transform-origin:60.11% 88.51%; opacity:0; will-change:transform, opacity;" />
-              </div>
+              <!-- GATINHO WEBGL: deformação óssea fotorrealista (braço, cabeça, rabo e respiração) -->
+              <canvas id="cat-gl" class="absolute inset-0 w-full h-full opacity-0 transition-opacity duration-300"></canvas>
+              <!-- Fallback estático enquanto as texturas carregam ou se WebGL não existir -->
+              <img id="cat-main-img" src="assets/oliver_photo.webp" alt="Oliver - Gatinho Fotorealista Spa Pet em Ultra-HD" class="absolute inset-0 w-full h-full object-cover select-none pointer-events-none" />
 
               <!-- EFEITO DE SHOCKWAVE NA PATINHA AO BATER -->
               <div id="paw-ripple-effect" class="absolute pointer-events-none rounded-full border-4 border-amber-300 opacity-0" style="left: 67.8%; top: 26.2%; transform: translate(-50%, -50%);"></div>
@@ -1473,27 +1464,266 @@
     const discountBadge = document.getElementById('discount-badge');
 
     let swatCount = 0;
-    let isSwatting = false;
-    let swatCooldown = false;
     let hasUnlockedCoupon = false;
 
-    /* Patinha fotorealista sobreposta: rastreia e agarra a bolinha.
-       Geometria medida em assets/paw_arm.png (mesma origem da imagem base):
-       - caixa do recorte: left 55.56%, top 13.57%, largura 17.7% do palco
-       - pivô (ombro) em 36.5%/97.9% da caixa = 62.0%/49.4% da imagem
-       - almofada da pata em 67.8%/26.2% da imagem (ponto usado no ripple) */
-    const pawOverlay = document.getElementById('cat-paw-overlay');
-    const pawOverlay2 = document.getElementById('cat-paw-overlay-2');
-    const PAW_PIVOT_FX = 0.620;
-    const PAW_PIVOT_FY = 0.494;
-    const REST_ANGLE = Math.atan2(0.262 - PAW_PIVOT_FY, 0.678 - PAW_PIVOT_FX);
-    const MAX_PAW_ROT = 0.42;
-    let pawRot = 0;
-    let pawRotVel = 0;
-    let pawScale = 1;
-    let pawScaleVel = 0;
-    let pawWiggle = 0;
-    let pawGrab = null; // {phase:'reach'|'hold'|'retreat', t, captured}
+    /* ========================================================
+       MOTOR WEBGL DO OLIVER: deformação óssea fotorrealista
+       Foto + placa limpa + matte do braço; rotação/escala ponderadas
+       ao longo do osso (sem fantasmas), molas amortecidas, cabeça que
+       segue a bolinha, rabo animado e respiração. Espaço: 800x533.
+       ======================================================== */
+    const catGLCanvas = document.getElementById('cat-gl');
+    const catMainImg = document.getElementById('cat-main-img');
+    const OVW = 800, OVH = 533;
+    const OPIV = [500, 275], OTIP0 = [548, 90];
+    const odx0 = OTIP0[0] - OPIV[0], ody0 = OTIP0[1] - OPIV[1];
+    const OL0 = Math.hypot(odx0, ody0), OA0 = Math.atan2(ody0, odx0);
+    const wrapAngle = a => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
+    const clampNum = (v, a, b) => Math.min(b, Math.max(a, v));
+
+    let oth = 0, othv = 0, osc = 1, oscv = 0, thG = 0, scG = 1, kk = 55, cc = 11;
+    let oState = 'idle', oStateT = 0, oHit = false, oHitT = 0, oCool = 1, oDwell = 0;
+    let oT = 0, oExcite = 0, oSlow = 0, oHeadT = 0, oTailPh = 0, oTailAmp = 0.05, oTailSp = 1.5;
+    let oTip = [OTIP0[0], OTIP0[1]];
+    let oReady = false;
+    const furPuffs = [];
+
+    let gl = null;
+    const glU = {};
+    const glImages = {};
+
+    const O_VS = 'attribute vec2 a;varying vec2 v;void main(){gl_Position=vec4(a,0.,1.);v=vec2(a.x*.5+.5,.5-a.y*.5);}';
+    const O_FS = `
+      #ifdef GL_FRAGMENT_PRECISION_HIGH
+      precision highp float;
+      #else
+      precision mediump float;
+      #endif
+      varying vec2 v;uniform sampler2D uPhoto,uPlate,uMatte;
+      uniform float uArmT,uArmS,uTailT,uHeadT,uBr;
+      const vec2 SZ=vec2(800.,533.);
+      float ss(float a,float b,float x){float t=clamp((x-a)/(b-a),0.,1.);return t*t*(3.-2.*t);}
+      vec2 rot(vec2 d,float a){float c=cos(a),s=sin(a);return vec2(c*d.x-s*d.y,s*d.x+c*d.y);}
+      vec2 bone(vec2 p,vec2 pv,vec2 tp,float th,float sc,float t0,float t1,float r0,float r1){
+        vec2 a=tp-pv;float L=length(a);vec2 u=a/L,d=p-pv;
+        float t=dot(d,u)/L,s=-d.x*u.y+d.y*u.x;
+        float w=ss(t0,t1,t)*(1.-ss(r0,r1,abs(s)));
+        return pv+rot(d,-th*w)/(1.+(sc-1.)*w)-p;}
+      void main(){
+        vec2 p=v*SZ;
+        vec2 dBr=vec2(0.,-(p.y-500.)*uBr);
+        vec2 dTail=bone(p,vec2(205.,270.),vec2(125.,110.),uTailT,1.,.05,.9,38.,66.);
+        float hw=1.-ss(92.,128.,length(p-vec2(400.,150.)));
+        vec2 dHead=vec2(400.,255.)+rot(p-vec2(400.,255.),-uHeadT*hw)-p;
+        vec3 base=texture2D(uPlate,(p+dTail+dHead+dBr)/SZ).rgb;
+        vec2 sa=p+bone(p,vec2(500.,275.),vec2(548.,90.),uArmT,uArmS,.2,.7,70.,120.)+dBr;
+        float A=texture2D(uMatte,sa/SZ).r;
+        vec3 arm=texture2D(uPhoto,sa/SZ).rgb;
+        gl_FragColor=vec4(mix(base,arm,A),1.);}`;
+
+    function oliverShader(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      return s;
+    }
+
+    function oliverInitGL() {
+      const pr = gl.createProgram();
+      gl.attachShader(pr, oliverShader(gl.VERTEX_SHADER, O_VS));
+      gl.attachShader(pr, oliverShader(gl.FRAGMENT_SHADER, O_FS));
+      gl.linkProgram(pr);
+      if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return;
+      gl.useProgram(pr);
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(pr, 'a');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      ['uArmT', 'uArmS', 'uTailT', 'uHeadT', 'uBr'].forEach(n => glU[n] = gl.getUniformLocation(pr, n));
+      ['photo', 'plate', 'matte'].forEach((n, i) => {
+        const t = gl.createTexture();
+        gl.activeTexture(gl.TEXTURE0 + i);
+        gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, glImages[n]);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.uniform1i(gl.getUniformLocation(pr, { photo: 'uPhoto', plate: 'uPlate', matte: 'uMatte' }[n]), i);
+      });
+      oliverResizeGL();
+      oReady = true;
+      catGLCanvas.classList.remove('opacity-0');
+      catMainImg.style.display = 'none';
+    }
+
+    function oliverResizeGL() {
+      if (!gl) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.round(catGLCanvas.clientWidth * dpr);
+      const h = Math.round(catGLCanvas.clientHeight * dpr);
+      if (catGLCanvas.width !== w || catGLCanvas.height !== h) {
+        catGLCanvas.width = w;
+        catGLCanvas.height = h;
+      }
+      gl.viewport(0, 0, w, h);
+    }
+
+    gl = catGLCanvas.getContext('webgl', { antialias: false, alpha: false });
+    let oliverPending = 3;
+    ['photo', 'plate', 'matte'].forEach(n => {
+      const im = new Image();
+      im.onload = () => {
+        glImages[n] = im;
+        if (--oliverPending === 0 && gl) oliverInitGL();
+      };
+      im.src = `assets/oliver_${n}.${n === 'matte' ? 'png' : 'webp'}`;
+    });
+    new ResizeObserver(oliverResizeGL).observe(catStageBox);
+
+    const oliverTipAt = () => {
+      const c = Math.cos(oth), s = Math.sin(oth);
+      return [OPIV[0] + osc * (c * odx0 - s * ody0), OPIV[1] + osc * (s * odx0 + c * ody0)];
+    };
+
+    function oliverEnterState(s) {
+      oState = s;
+      oStateT = 0;
+      if (s === 'wind') oHit = false;
+    }
+
+    function spawnFurPuffs(x, y) {
+      for (let i = 0; i < 8; i++) {
+        const a = Math.random() * 6.283, v = 30 + Math.random() * 70;
+        furPuffs.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 25, l: 0.7, r: 3 + Math.random() * 5 });
+      }
+    }
+
+    function updateOliver(dt, rect) {
+      oT += dt;
+      oStateT += dt;
+      oCool -= dt;
+      oExcite = Math.max(0, oExcite - dt * 0.8);
+
+      // Bolinha do site no espaço 800x533 do shader
+      const bx = (ball.x - rect.left) / rect.width * OVW;
+      const by = (ball.y - rect.top) / rect.height * OVH;
+      const bvx = ball.vx * 60 / rect.width * OVW;
+      const bvy = ball.vy * 60 / rect.height * OVH;
+
+      const rx = bx - OPIV[0], ry = by - OPIV[1];
+      const dB = Math.hypot(rx, ry);
+      const angB = wrapAngle(Math.atan2(ry, rx) - OA0);
+      const reach = angB > -0.2 && angB < 0.8 && dB < 290 && dB > 110;
+
+      if (oState === 'idle') {
+        oDwell = (reach && oCool <= 0) ? oDwell + dt : Math.max(0, oDwell - dt * 2);
+        if (oDwell > 0.2) { oDwell = 0; oliverEnterState('wind'); }
+        thG = (reach ? clampNum(angB * 0.22, -0.08, 0.22) : 0) + 0.03 * Math.sin(oT * 1.7);
+        scG = 1 + 0.015 * Math.sin(oT * 2.3);
+        kk = 55; cc = 11;
+      } else if (oState === 'wind') {
+        // Antecipação: recua antes de atacar
+        oExcite = Math.max(oExcite, 1);
+        thG = -0.17; scG = 0.94; kk = 120; cc = 22;
+        if (oStateT > 0.26) {
+          const tx = bx + bvx * 0.06, ty = by + bvy * 0.06;
+          const a = wrapAngle(Math.atan2(ty - OPIV[1], tx - OPIV[0]) - OA0);
+          const d = Math.hypot(tx - OPIV[0], ty - OPIV[1]);
+          thG = clampNum(a, -0.2, 0.74);
+          scG = clampNum(d / OL0 * 1.03, 0.9, 1.12);
+          oliverEnterState('swat');
+        }
+      } else if (oState === 'swat') {
+        oExcite = Math.max(oExcite, 1);
+        kk = 950; cc = 52;
+        if (oStateT > 0.17 || (oHit && oStateT > oHitT + 0.07)) oliverEnterState('recover');
+      } else {
+        thG = 0; scG = 1; kk = 90; cc = 19;
+        if (oStateT > 0.45) { oliverEnterState('idle'); oCool = 0.25 + Math.random() * 0.5; }
+      }
+
+      // Cabeça segue a bolinha; rabo acelera com a excitação
+      const hx = bx - 400, hy = by - 150;
+      oHeadT += (clampNum(Math.atan2(hy, hx) * 0.07, -0.05, 0.07) - oHeadT) * (1 - Math.exp(-dt * 5));
+      oTailAmp += ((0.05 + 0.09 * Math.min(oExcite, 1.2)) - oTailAmp) * (1 - Math.exp(-dt * 4));
+      oTailSp += ((1.5 + 4.2 * Math.min(oExcite, 1.2)) - oTailSp) * (1 - Math.exp(-dt * 4));
+      oTailPh += dt * oTailSp;
+
+      // Molas amortecidas do braço (ângulo e escala)
+      othv += (kk * (thG - oth) - cc * othv) * dt;
+      oth += othv * dt;
+      oscv += (kk * (scG - osc) - cc * oscv) * dt;
+      osc += oscv * dt;
+      oth = clampNum(oth, -0.3, 0.8);
+      osc = clampNum(osc, 0.85, 1.15);
+
+      const tip2 = oliverTipAt();
+      const tipVx = (tip2[0] - oTip[0]) / Math.max(dt, 1e-4);
+      const tipVy = (tip2[1] - oTip[1]) / Math.max(dt, 1e-4);
+      oTip = tip2;
+
+      // Impacto da patinha na bolinha
+      if (oState === 'swat' && !oHit) {
+        const dx = bx - oTip[0], dy = by - oTip[1], d = Math.hypot(dx, dy);
+        if (d < 56 && Math.hypot(tipVx, tipVy) > 160) {
+          oHit = true;
+          oHitT = oStateT;
+          const nx = dx / d, ny = dy / d;
+          const vx = bvx * 0.3 + nx * 400 + tipVx * 0.45;
+          const vy = bvy * 0.3 + ny * 400 + tipVy * 0.45 - 50;
+          // Converte velocidade local (px/s) para px/frame do sistema da bolinha
+          ball.vx = vx * rect.width / OVW / 60;
+          ball.vy = vy * rect.height / OVH / 60;
+          oSlow = 0.09;
+          oExcite = 1.4;
+
+          const tipScreenX = rect.left + oTip[0] / OVW * rect.width;
+          const tipScreenY = rect.top + oTip[1] / OVH * rect.height;
+          spawnFurPuffs(tipScreenX + nx * 10, tipScreenY + ny * 10);
+
+          swatCount++;
+          swatCounterEl.textContent = swatCount;
+          if (swatCount >= 5 && !hasUnlockedCoupon) {
+            hasUnlockedCoupon = true;
+            couponBanner.classList.remove('hidden');
+            discountBadge.classList.remove('hidden');
+            updatePriceEstimate();
+            showCatSpeech('🎉 PARABÉNS! Você ganhou 15% OFF! Cupom OLIVER15 aplicado! 🎁');
+            spawnHeartBurst(window.innerWidth / 2, window.innerHeight * 0.4);
+          }
+          playPawSwatSound();
+          if (ball.toyType === 'bell') playBellSound();
+          if (swatCount % 3 === 0) playCatMeow();
+
+          pawRippleEffect.classList.remove('paw-shockwave');
+          void pawRippleEffect.offsetWidth;
+          pawRippleEffect.classList.add('paw-shockwave');
+
+          const msgs = [
+            'Bote certeiro! 😸',
+            'Peguei! Quase... 🐾',
+            'Belo reflexo! ⚡',
+            'Adoro esse brinquedo! ❤️',
+            'Mais uma vez! 🎾'
+          ];
+          showCatSpeech(msgs[Math.floor(Math.random() * msgs.length)]);
+          spawnPawParticles(tipScreenX, tipScreenY, '+1 BOTE! 🐾');
+        }
+      }
+
+      // Desenha o gato com as deformações atuais
+      if (oReady) {
+        gl.uniform1f(glU.uArmT, oth);
+        gl.uniform1f(glU.uArmS, osc);
+        gl.uniform1f(glU.uTailT, Math.sin(oTailPh) * oTailAmp + Math.sin(oTailPh * 0.5 + 1) * 0.03);
+        gl.uniform1f(glU.uHeadT, oHeadT);
+        gl.uniform1f(glU.uBr, 0.005 * Math.sin(oT * 1.9));
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+    }
 
     function showCatSpeech(msg) {
       speechText.textContent = msg;
@@ -1542,8 +1772,14 @@
     let lastTime = performance.now();
 
     function renderLoop(time) {
-      const dt = Math.min((time - lastTime) / 1000, 0.05);
+      const rawDt = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
+      // Câmera lenta breve no impacto da patinha
+      let dt = rawDt;
+      if (oSlow > 0) {
+        dt *= 0.3;
+        oSlow -= rawDt;
+      }
 
       // Movimento automático se ativado
       if (autoPlayActive) {
@@ -1844,9 +2080,7 @@
       const tiltY = Math.max(-9, Math.min(9, deltaX * 0.02));
       const tiltX = Math.max(-7, Math.min(7, -deltaY * 0.016));
 
-      if (!isSwatting) {
-        catWrapper.style.transform = `rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
-      }
+      catWrapper.style.transform = `rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
 
       // 2. PROXIMIDADE DA PATINHA
       const distToPaw = Math.hypot(ball.x - pawPadScreenX, ball.y - pawPadScreenY);
@@ -1861,162 +2095,31 @@
         proximityStatus.parentElement.classList.add('bg-white/90', 'text-purple-900');
       }
 
-      // 3. RASTREAMENTO + AGARRAR DA PATINHA FOTOREALISTA
-      const pivotX = rect.left + rect.width * PAW_PIVOT_FX;
-      const pivotY = rect.top + rect.height * PAW_PIVOT_FY;
-      const restPadDist = Math.hypot(pawPadScreenX - pivotX, pawPadScreenY - pivotY);
+      // 3. MOTOR WEBGL DO OLIVER: rastreio, antecipação e bote fotorrealista
+      updateOliver(dt, rect);
 
-      // Ângulo da bolinha visto do ombro da pata
-      const angleToBall = Math.atan2(ball.y - pivotY, ball.x - pivotX);
-      let rawDelta = angleToBall - REST_ANGLE;
-      while (rawDelta > Math.PI) rawDelta -= Math.PI * 2;
-      while (rawDelta < -Math.PI) rawDelta += Math.PI * 2;
-      const clampedDelta = Math.max(-MAX_PAW_ROT, Math.min(MAX_PAW_ROT, rawDelta));
-
-      let targetRot = Math.sin(time * 0.0011) * 0.028; // balanço natural em repouso
-      let targetScale = 1;
-      let pawStiff = 0.085;
-      let pawDamp = 0.82;
-      let paw2Opacity = 0;
-      let paw2X = 0, paw2Y = 0;
-
-      if (!pawGrab && distToPaw < 420) {
-        // Acompanha a bolinha com o movimento do ombro
-        targetRot = clampedDelta;
-        targetScale = 1 + (1 - Math.min(1, distToPaw / 420)) * 0.12;
+      if (oState === 'wind') {
+        proximityStatus.textContent = '😾 Oliver vai atacar...';
+      } else if (oState === 'swat') {
+        proximityStatus.textContent = '💨 BOTE!';
       }
 
-      if (distToPaw < 115 && !swatCooldown && !pawGrab) {
-        pawGrab = { phase: 'reach', t: 0, captured: false };
-        isSwatting = true;
-      }
-
-      if (pawGrab) {
-        pawGrab.t += dt;
-
-        if (pawGrab.phase === 'reach') {
-          // Extensão rápida da pata em direção à bolinha
-          pawStiff = 0.38;
-          pawDamp = 0.72;
-          targetRot = clampedDelta;
-          targetScale = 1.11;
-          pawWiggle = Math.sin(pawGrab.t * 55) * 1.6;
-          paw2Opacity = Math.min(1, pawGrab.t * 9);
-          paw2X = Math.max(-10, Math.min(46, 30 + (ball.x - pawPadScreenX) * 0.3));
-          paw2Y = Math.max(-20, Math.min(20, (ball.y - pawPadScreenY) * 0.3));
-
-          if (pawGrab.t >= 0.12) {
-            if (distToPaw < 85) {
-              pawGrab.phase = 'hold';
-              pawGrab.t = 0;
-              pawGrab.captured = true;
-            } else {
-              pawGrab.phase = 'retreat';
-              pawGrab.t = 0;
-            }
-          }
-        } else if (pawGrab.phase === 'hold') {
-          // Agarrou: aperta a bolinha entre as patas
-          pawStiff = 0.42;
-          pawDamp = 0.70;
-          targetRot = clampedDelta;
-          targetScale = 1.12;
-          pawWiggle = Math.sin(pawGrab.t * 42) * 2.4;
-          paw2Opacity = 1;
-          paw2X = Math.max(-10, Math.min(46, 30 + (ball.x - pawPadScreenX) * 0.3));
-          paw2Y = Math.max(-20, Math.min(20, (ball.y - pawPadScreenY) * 0.3));
-
-          // Bolinha presa na almofada da pata
-          const padAng = REST_ANGLE + pawRot;
-          const holdX = pivotX + Math.cos(padAng) * restPadDist * pawScale;
-          const holdY = pivotY + Math.sin(padAng) * restPadDist * pawScale;
-          ball.impulseX = 0;
-          ball.impulseY = 0;
-          ball.vx *= 0.3;
-          ball.vy *= 0.3;
-          ball.x += (holdX - ball.x) * 0.45;
-          ball.y += (holdY - ball.y) * 0.45;
-
-          if (pawGrab.t >= 0.45) {
-            // ===== SOLTURA: efeitos do bote =====
-            swatCooldown = true;
-            swatCount++;
-            swatCounterEl.textContent = swatCount;
-
-            if (swatCount >= 5 && !hasUnlockedCoupon) {
-              hasUnlockedCoupon = true;
-              couponBanner.classList.remove('hidden');
-              discountBadge.classList.remove('hidden');
-              updatePriceEstimate();
-              showCatSpeech('🎉 PARABÉNS! Você ganhou 15% OFF! Cupom OLIVER15 aplicado! 🎁');
-              spawnHeartBurst(window.innerWidth / 2, window.innerHeight * 0.4);
-            }
-
-            playPawSwatSound();
-            if (ball.toyType === 'bell') playBellSound();
-            if (swatCount % 3 === 0) playCatMeow();
-
-            const repelAngle = Math.atan2(ball.y - pawPadScreenY, ball.x - pawPadScreenX);
-            const pushForce = 34;
-            ball.impulseX = Math.cos(repelAngle) * pushForce + (Math.random() - 0.5) * 15;
-            ball.impulseY = Math.sin(repelAngle) * pushForce - 22;
-
-            pawRippleEffect.classList.remove('paw-shockwave');
-            void pawRippleEffect.offsetWidth;
-            pawRippleEffect.classList.add('paw-shockwave');
-
-            const lungeOffsetX = Math.max(-18, Math.min(18, (ball.x - pawPadScreenX) * 0.15));
-            const lungeOffsetY = Math.max(-16, Math.min(16, (ball.y - pawPadScreenY) * 0.15));
-            catWrapper.style.transition = 'transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1)';
-            catWrapper.style.transform = `translate(${lungeOffsetX}px, ${lungeOffsetY}px) scale(1.05) rotateY(${tiltY * 1.2}deg) rotateX(${tiltX * 1.2}deg)`;
-
-            const msgs = [
-              'Agarrei! Hihi 😸',
-              'Peguei com as patinhas! 🐾',
-              'Belo reflexo! ⚡',
-              'Adoro esse brinquedo! ❤️',
-              'Mais uma vez! 🎾'
-            ];
-            showCatSpeech(msgs[Math.floor(Math.random() * msgs.length)]);
-            spawnPawParticles(pawPadScreenX, pawPadScreenY, `+1 BOTE! 🐾`);
-
-            setTimeout(() => {
-              catWrapper.style.transition = 'transform 0.25s ease-out';
-              catWrapper.style.transform = `rotateY(${tiltY}deg) rotateX(${tiltX}deg)`;
-              setTimeout(() => {
-                isSwatting = false;
-                catWrapper.style.transition = 'transform 0.08s cubic-bezier(0.2, 0.8, 0.2, 1)';
-              }, 260);
-            }, 110);
-
-            setTimeout(() => {
-              swatCooldown = false;
-            }, 620);
-
-            pawGrab.phase = 'retreat';
-            pawGrab.t = 0;
-          }
-        } else if (pawGrab.phase === 'retreat') {
-          // Volta à pose de repouso
-          pawStiff = 0.10;
-          pawDamp = 0.84;
-          paw2Opacity = Math.max(0, 1 - pawGrab.t * 7);
-          if (pawGrab.t >= 0.2) pawGrab = null;
-        }
-      }
-
-      // Física de mola: suave no rastreio, rápida e elástica no bote
-      const frameK = dt * 60;
-      pawRotVel = (pawRotVel + (targetRot - pawRot) * pawStiff * frameK) * Math.pow(pawDamp, frameK);
-      pawRot += pawRotVel;
-      pawScaleVel = (pawScaleVel + (targetScale - pawScale) * pawStiff * frameK) * Math.pow(pawDamp, frameK);
-      pawScale += pawScaleVel;
-      pawWiggle *= Math.pow(0.88, frameK);
-      const pawDeg = pawRot * 57.2958 + pawWiggle;
-      pawOverlay.style.transform = `rotate(${pawDeg}deg) scale(${pawScale})`;
-      pawOverlay2.style.opacity = paw2Opacity;
-      if (paw2Opacity > 0) {
-        pawOverlay2.style.transform = `translate(${paw2X}px, ${paw2Y}px) scaleX(-1) rotate(${-pawDeg * 0.45}deg)`;
+      // Tufos de pelo do impacto (desenhados no canvas principal)
+      for (let i = furPuffs.length - 1; i >= 0; i--) {
+        const q = furPuffs[i];
+        q.l -= dt;
+        q.vy += 40 * dt;
+        q.x += q.vx * dt;
+        q.y += q.vy * dt;
+        q.vx *= 0.97;
+        if (q.l <= 0) { furPuffs.splice(i, 1); continue; }
+        const gg = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.r * 1.6);
+        gg.addColorStop(0, `rgba(235,235,245,${q.l * 0.7})`);
+        gg.addColorStop(1, 'rgba(235,235,245,0)');
+        ctx.fillStyle = gg;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, q.r * 1.6, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       requestAnimationFrame(renderLoop);
