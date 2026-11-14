@@ -417,7 +417,7 @@
             </button>
             <button id="btn-purr" class="px-3.5 py-1.5 rounded-full bg-white hover:bg-purple-100 text-purple-700 border border-purple-200 font-medium transition flex items-center gap-1.5 shadow-xs">
               <span>💤</span>
-              <span>Ligar Ronrom</span>
+              <span id="purr-label">Ligar Ronrom</span>
             </button>
           </div>
 
@@ -1046,40 +1046,15 @@
       }
     }
 
-    // Som de Miau fofinho realista do Oliver
+    const meowAudio = new Audio('assets/oliver_meow.mp3');
+    meowAudio.preload = 'auto';
+    meowAudio.volume = 0.55;
+
     function playCatMeow() {
       if (!audioEnabled) return;
-      initAudio();
-      if (!audioCtx) return;
-
-      const now = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      const filter = audioCtx.createBiquadFilter();
-
-      // Pitch glide vocal: de 450Hz -> 790Hz -> 510Hz
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(450, now);
-      osc.frequency.exponentialRampToValueAtTime(790, now + 0.14);
-      osc.frequency.exponentialRampToValueAtTime(510, now + 0.42);
-
-      // Filtro formante para ressonância de miado felino
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(900, now);
-      filter.frequency.exponentialRampToValueAtTime(1450, now + 0.14);
-      filter.frequency.exponentialRampToValueAtTime(750, now + 0.42);
-      filter.Q.value = 3.5;
-
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.24, now + 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.46);
+      meowAudio.currentTime = 0;
+      meowAudio.playbackRate = 0.97 + Math.random() * 0.06;
+      meowAudio.play().catch(() => {});
     }
 
     // Som de Patada / Batida macia no novelo
@@ -1170,61 +1145,35 @@
       osc.stop(now + 0.095);
     }
 
-    // Som de Ronrom suave contínuo
-    let purrOsc = null;
-    let purrGain = null;
+    const purrAudio = new Audio('assets/oliver_purr.mp3');
+    purrAudio.preload = 'auto';
+    purrAudio.loop = true;
+    purrAudio.volume = 0.35;
     let isPurring = false;
+
+    function updatePurrUI() {
+      document.getElementById('cat-mood-label').textContent = isPurring ? 'Ronronando Feliz 🥰' : 'Brincalhão';
+      document.getElementById('purr-label').textContent = isPurring ? 'Parar Ronrom' : 'Ligar Ronrom';
+    }
+
+    function stopPurr() {
+      purrAudio.pause();
+      purrAudio.currentTime = 0;
+      isPurring = false;
+      updatePurrUI();
+    }
 
     function togglePurr() {
       if (!audioEnabled) return;
-      initAudio();
-      if (!audioCtx) return;
-
       if (isPurring) {
-        if (purrGain) {
-          purrGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
-          setTimeout(() => {
-            if (purrOsc) { purrOsc.stop(); purrOsc.disconnect(); purrOsc = null; }
-          }, 350);
-        }
-        isPurring = false;
-        document.getElementById('cat-mood-label').textContent = 'Brincalhão';
+        stopPurr();
         return;
       }
-
-      const now = audioCtx.currentTime;
-      purrOsc = audioCtx.createOscillator();
-      const modOsc = audioCtx.createOscillator();
-      const modGain = audioCtx.createGain();
-      purrGain = audioCtx.createGain();
-
-      purrOsc.type = 'sawtooth';
-      purrOsc.frequency.setValueAtTime(28, now);
-
-      modOsc.type = 'sine';
-      modOsc.frequency.setValueAtTime(24, now);
-      modGain.gain.setValueAtTime(12, now);
-      modOsc.connect(purrOsc.frequency);
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(110, now);
-
-      purrGain.gain.setValueAtTime(0.001, now);
-      purrGain.gain.linearRampToValueAtTime(0.18, now + 0.2);
-
-      purrOsc.connect(filter);
-      filter.connect(purrGain);
-      purrGain.connect(audioCtx.destination);
-
-      modOsc.start(now);
-      purrOsc.start(now);
-      isPurring = true;
-      document.getElementById('cat-mood-label').textContent = 'Ronronando Feliz 🥰';
-
-      setTimeout(() => {
-        if (isPurring) togglePurr();
-      }, 4200);
+      purrAudio.currentTime = 0;
+      purrAudio.play().then(() => {
+        isPurring = true;
+        updatePurrUI();
+      }).catch(() => {});
     }
 
     // Controle do botão de som na Top Bar
@@ -1244,6 +1193,9 @@
         soundIcon.textContent = '🔇';
         soundLabel.textContent = 'Silenciado';
         soundToggleBtn.classList.add('opacity-60');
+        meowAudio.pause();
+        meowAudio.currentTime = 0;
+        stopPurr();
       }
     });
 
@@ -1616,7 +1568,7 @@
       const rx = bx - OPIV[0], ry = by - OPIV[1];
       const dB = Math.hypot(rx, ry);
       const angB = wrapAngle(Math.atan2(ry, rx) - OA0);
-      const reach = angB > -0.2 && angB < 0.8 && dB < 290 && dB > 110;
+      const reach = angB > -0.2 && angB < 0.58 && dB < 290 && dB > 110;
 
       if (oState === 'idle') {
         oDwell = (reach && oCool <= 0) ? oDwell + dt : Math.max(0, oDwell - dt * 2);
@@ -1632,7 +1584,7 @@
           const tx = bx + bvx * 0.06, ty = by + bvy * 0.06;
           const a = wrapAngle(Math.atan2(ty - OPIV[1], tx - OPIV[0]) - OA0);
           const d = Math.hypot(tx - OPIV[0], ty - OPIV[1]);
-          thG = clampNum(a, -0.2, 0.74);
+          thG = clampNum(a, -0.2, 0.38);
           scG = clampNum(d / OL0 * 1.03, 0.9, 1.12);
           oliverEnterState('swat');
         }
@@ -1657,7 +1609,7 @@
       oth += othv * dt;
       oscv += (kk * (scG - osc) - cc * oscv) * dt;
       osc += oscv * dt;
-      oth = clampNum(oth, -0.3, 0.8);
+      oth = clampNum(oth, -0.3, 0.42);
       osc = clampNum(osc, 0.85, 1.15);
 
       const tip2 = oliverTipAt();
